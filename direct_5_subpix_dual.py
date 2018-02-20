@@ -925,8 +925,10 @@ class Model(GANModelDesc):
 				affnt_il = tf.reduce_mean(tf.subtract(binary_cross_entropy(pa, pia_), 
 								   dice_coe(pa, pia_, axis=[0,1,2,3], loss_type='jaccard')))
 			with tf.name_scope('residual_loss'):		
-				residual_a = tf.reduce_mean(tf.abs(pia - pila), name='residual_a')
-				residual_l = tf.reduce_mean(tf.abs(pil - pial), name='residual_l')
+				# residual_a = tf.reduce_mean(tf.abs(pia - pila), name='residual_a')
+				# residual_l = tf.reduce_mean(tf.abs(pil - pial), name='residual_l')
+				residual_a = tf.reduce_mean(tf.cast(tf.not_equal(pia, pila), tf.float32), name='residual_a')
+				residual_l = tf.reduce_mean(tf.cast(tf.not_equal(pil, pial), tf.float32), name='residual_l')
 				residual_il = tf.reduce_mean([residual_a, residual_l], name='residual_il')
 			def label_imag(y_pred_L, name='label_imag'):
 				mag_grad_L   = magnitute_central_difference(y_pred_L, name='mag_grad_L')
