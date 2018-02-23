@@ -48,7 +48,7 @@ SHAPE = 256
 BATCH = 1
 TEST_BATCH = 100
 EPOCH_SIZE = 100
-NB_FILTERS = 32  # channel size
+NB_FILTERS = 16  # channel size
 
 DIMX  = 512
 DIMY  = 512
@@ -117,174 +117,6 @@ def toFloat32Label(label, factor=MAX_LABEL):
 	result = tf.where(condition, -1.0*tf.ones_like(result), result, name='addedBackground') # From -1 to 0
 	return tf.cast(result, tf.float32)
 
-###############################################################################
-# class MalisWeights(object):
-
-# 	def __init__(self, output_shape, neighborhood):
-# 		self.output_shape = np.asarray(output_shape)
-# 		self.neighborhood = np.asarray(neighborhood)
-# 		self.edge_list = nodelist_like(self.output_shape, self.neighborhood)
-
-# 	def get_edge_weights(self, affs, gt_affs, gt_seg):
-
-# 		assert affs.shape[0] == len(self.neighborhood)
-
-# 		# x_y focus pass
-# 		weights_neg, neg_npairs = self.malis_pass(affs, gt_affs, gt_seg, 0.3, 1., 1., pos=0)
-# 		weights_pos, pos_npairs = self.malis_pass(affs, gt_affs, gt_seg, 0.3, 1., 1., pos=1)
-# 		# z focus pass
-# 		# z_weights_neg, neg_npairs = self.malis_pass(affs, gt_affs, gt_seg, 1., 0.3, 0.3, pos=0)
-# 		# z_weights_pos, pos_npairs = self.malis_pass(affs, gt_affs, gt_seg, 1., 0.3, 0.3, pos=1)
-
-# 		#################################################################################
-# 		# weights_neg = xy_weights_neg + z_weights_neg
-# 		# weights_pos = xy_weights_pos + z_weights_pos
-# 		# tot_npairs = neg_npairs + pos_npairs
-# 		# norm_factor = np.prod (gt_seg.shape, dtype=np.float32)
-# 		# print 'npair: ', neg_npairs, pos_npairs
-
-# 		# ret = (weights_neg / neg_npairs) + (weights_pos / pos_npairs)
-# 		# ret = weights_neg / norm_factor
-# 		# weights_pos = weights_neg
-# 		# ret = (weights_neg + weights_pos) / norm_factor
-# 		#################################################################################
-# 		# print np.sum (weights_pos > 0), np.sum (weights_neg > 0)
-# 		#################################################################################
-# 		# ret = weights_neg + weights_pos
-# 		# minval = np.min (ret)
-# 		# maxval = np.max (ret)
-# 		# scaled_min = 1.0
-# 		# scaled_max = 5.0
-# 		# ret = (ret - minval) * (scaled_max - scaled_min) / (maxval - minval) + scaled_min
-# 		# #################################################################################
-
-# 		ret = weights_neg + weights_pos
-
-# 		scaled_min_neg = 2.0
-# 		scaled_max_neg = 10.0
-
-# 		scaled_min_pos = 0.2
-# 		scaled_max_pos = 1.0
-
-# 		weights_pos_scaled = (weights_pos - np.min (weights_pos)) *\
-# 				(scaled_max_pos - scaled_min_pos) /\
-# 				(np.max (weights_pos) - np.min (weights_pos))\
-# 				+ scaled_min_pos
-
-# 		weights_neg_scaled = (weights_neg - np.min (weights_neg)) *\
-# 				(scaled_max_neg - scaled_min_neg) /\
-# 				(np.max (weights_neg) - np.min (weights_neg))\
-# 				+ scaled_min_neg
-
-# 		ret = weights_pos_scaled + weights_neg_scaled
-		
-
-# 		return ret , weights_pos, weights_neg
-
-# 	def malis_pass(self, affs, gt_affs, gt_seg, z_scale, y_scale, x_scale, pos):
-
-# 		# create a copy of the affinities and change them, such that in the
-# 		#   positive pass (pos == 1): affs[gt_affs == 0] = 0
-# 		#   negative pass (pos == 0): affs[gt_affs == 1] = 1
-
-# 		pass_affs = np.copy(affs)
-# 		pass_affs[gt_affs == (1 - pos)] = (1 - pos)
-
-# 		pass_affs[0,:,:] *= z_scale
-# 		pass_affs[1,:,:] *= y_scale
-# 		pass_affs[2,:,:] *= x_scale
-
-# 		weights = malis_loss_weights(
-# 			gt_seg.astype(np.uint64).flatten(),
-# 			self.edge_list[0].flatten(),
-# 			self.edge_list[1].flatten(),
-# 			pass_affs.astype(np.float32).flatten(),
-# 			pos)
-
-# 		weights = weights.reshape((-1,) + tuple(self.output_shape))
-# 		assert weights.shape[0] == len(self.neighborhood)
-
-# 		num_pairs = np.sum(weights, dtype=np.uint64)
-# 		# print num_pairs
-# 		# '1-pos' samples don't contribute in the 'pos' pass
-# 		weights[gt_affs == (1 - pos)] = 0
-# 		# print num_pairs, np.sum(weights, dtype=np.uint64), pos, np.sum (weights < 0)
-# 		# print np.max (weights)
-# 		# normalize
-# 		weights = weights.astype(np.float32)
-# 		num_pairs = np.sum(weights)
-# 		# if num_pairs > 0:
-# 		#     weights = weights/num_pairs
-
-# 		return weights, num_pairs
-
-# def malis_weights_op(affs, gt_affs, gt_seg, neighborhood, name=None):
-# 	'''Returns a tensorflow op to compute just the weights of the MALIS loss.
-# 	This is to be multiplied with an edge-wise base loss and summed up to create
-# 	the final loss. For the Euclidean loss, use ``malis_loss_op_afft``.
-# 	Args:
-# 		affs (Tensor): The predicted affinities.
-# 		gt_affs (Tensor): The ground-truth affinities.
-# 		gt_seg (Tensor): The corresponding segmentation to the ground-truth
-# 			affinities. Label 0 denotes background.
-# 		neighborhood (Tensor): A list of spacial offsets, defining the
-# 			neighborhood for each voxel.
-# 		name (string, optional): A name to use for the operators created.
-# 	Returns:
-# 		A tensor with the shape of ``affs``, with MALIS weights stored for each
-# 		edge.
-# 	'''
-
-# 	output_shape = gt_seg.get_shape().as_list()
-
-# 	malis_weights = MalisWeights(output_shape, neighborhood)
-# 	malis_functor = lambda affs, gt_affs, gt_seg, mw=malis_weights: \
-# 		mw.get_edge_weights(affs, gt_affs, gt_seg)
-
-# 	weights = tf.py_func(
-# 		malis_functor,
-# 		[affs, gt_affs, gt_seg],
-# 		[tf.float32, tf.float32, tf.float32],
-# 		name=name)
-# 	# print weights
-# 	return weights
-
-# def malis_loss_op_afft(affs, gt_affs, gt_seg, neighborhood, name=None):
-# 	'''Returns a tensorflow op to compute the MALIS loss, using the squared
-# 	distance to the target values for each edge as base loss.
-# 	Args:
-# 		affs (Tensor): The predicted affinities.
-# 		gt_affs (Tensor): The ground-truth affinities.
-# 		gt_seg (Tensor): The corresponding segmentation to the ground-truth
-# 			affinities. Label 0 denotes background.
-# 		neighborhood (Tensor): A list of spacial offsets, defining the
-# 			neighborhood for each voxel.
-# 		name (string, optional): A name to use for the operators created.
-# 	Returns:
-# 		A tensor with one element, the MALIS loss.
-# 	'''
-
-# 	# weights, weights_pos, weights_neg = malis_weights_op(affs, gt_affs, gt_seg, neighborhood, name='malis_weights')
-# 	weights, pos_weights, neg_weights = malis_weights_op(affs, gt_affs, gt_seg, neighborhood, name='malis_weights')
-# 	edge_loss = tf.square(tf.subtract(gt_affs, affs))
-
-# 	return tf.reduce_sum (tf.multiply(weights, edge_loss), name='malis_loss')
-# def malis_loss_op (gt_seg, pred_seg, nhood=malis.mknhood3d(1), name=None):
-# 	'''
-# 		pred_seg: tensor int32
-# 		gt_seg: tensor int32
-# 		neighborhood: np.int32
-# 	'''
-# 	#convert to z, y, x
-# 	gt_seg   = toInt32Label(gt_seg)
-# 	pred_seg = toInt32Label(pred_seg)
-
-# 	gt_seg   = tf.squeeze(gt_seg)
-# 	pred_seg = tf.squeeze(pred_seg)
-
-# 	pred_affs = seg_to_affs_op (pred_seg, tf.constant (nhood))
-# 	gt_affs = seg_to_affs_op (gt_seg, tf.constant (nhood))
-# 	return malis_loss_op_afft (pred_affs, gt_affs, gt_seg, nhood)
 ###############################################################################
 def magnitute_central_difference(image, name=None):
 	from tensorflow.python.framework import ops
@@ -357,9 +189,11 @@ def residual(x, chan, first=False):
 	with argscope([Conv2D], nl=INLReLU, stride=1, kernel_shape=3):
 		input = x
 		return (LinearWrap(x)
-				.Conv2D('conv0', chan, padding='SAME')
-				.Conv2D('conv1', chan/2, padding='SAME')
-				.Conv2D('conv2', chan, padding='SAME', nl=tf.identity)
+				.Conv2D('conv1', chan, padding='SAME', dilation_rate=1)
+				.Conv2D('conv2', chan, padding='SAME', dilation_rate=2)
+				.Conv2D('conv4', chan, padding='SAME', dilation_rate=4)				
+				.Conv2D('conv5', chan, padding='SAME', dilation_rate=8)
+				.Conv2D('conv0', chan, padding='SAME', nl=tf.identity)
 				.InstanceNorm('inorm')()) + input
 
 ###############################################################################
@@ -763,7 +597,7 @@ class Model(GANModelDesc):
 					  use_bias=False), \
 				argscope(BatchNorm, gamma_init=tf.random_uniform_initializer()), \
 				argscope([Conv2D, Deconv2D, BatchNorm], data_format='NHWC'), \
-				argscope([Conv2D], dilation_rate=2):
+				argscope([Conv2D], dilation_rate=1):
 
 			
 
@@ -799,7 +633,7 @@ class Model(GANModelDesc):
 				print pial
 				print pil
 				dis_real = self.discriminator(tf.concat([pi, pl, pa], axis=-1))
-				dis_fake = self.discriminator(tf.concat([pi, pil_, pia_], axis=-1))
+				dis_fake = self.discriminator(tf.concat([pi, pil, pia], axis=-1))
 
 			with tf.name_scope('GAN_loss'):
 				G_loss, D_loss = self.build_losses(dis_real, dis_fake, name='gan_loss')
@@ -949,8 +783,8 @@ class Model(GANModelDesc):
 								10*(recon_il), 
 								10*(residual_il), 
 								1*(rand_il), 
-								20*(discrim_il), 
-								0.002*affnt_il, 		
+								50*(discrim_il), 
+								0.005*affnt_il, 		
 								], name='G_loss_total')
 		self.d_loss = tf.reduce_sum([
 								D_loss
@@ -990,270 +824,7 @@ class Model(GANModelDesc):
 		vis = tf.cast(tf.clip_by_value(vis, 0, 255), tf.uint8, name='vis')
 		tf.summary.image('affinities', vis, max_outputs=50)
 
-		# 	pil   = rounded(pil)	
-		# 	with tf.variable_scope('discrim'):
-		# 		l_dis_real = self.discriminator(tf.concat([pi, pl], axis=-1))
-		# 		l_dis_fake = self.discriminator(tf.concat([pi, pil], axis=-1))
-		
-		# with tf.name_scope('Equal_L_loss'):		
-		# 	equal_il = tf.reduce_mean(tf.cast(
-		# 						tf.not_equal(cvt2imag(pl, maxVal=MAX_LABEL), cvt2imag(pil, maxVal=MAX_LABEL)), 
-		# 						tf.float32), name='equal_il')
 
-		# with tf.name_scope('Recon_L_loss'):		
-		# 	recon_il 		= tf.reduce_mean(tf.abs(cvt2imag(pl, maxVal=MAX_LABEL) - cvt2imag(pil, maxVal=MAX_LABEL)), name='recon_il')
-			
-		# with tf.name_scope('GAN_loss'):
-		# 	G_loss, D_loss = self.build_losses(l_dis_real, l_dis_fake, name='gan_il')
-
-		
-
-
-		# # custom loss for tf_rand_score
-		# with tf.name_scope('rand_loss'):
-		# 	rand_il  = tf.reduce_mean()
-
-		# with tf.name_scope('discrim_loss'):
-		# 	def regDLF(y_true, y_pred, alpha=1, beta=1, gamma=0.01, delta_v=0.5, delta_d=1.5, name='loss_discrim'):
-		# 		def tf_norm(inputs, axis=1, epsilon=1e-7,  name='safe_norm'):
-		# 			squared_norm 	= tf.reduce_sum(tf.square(inputs), axis=axis, keep_dims=True)
-		# 			safe_norm 		= tf.sqrt(squared_norm+epsilon)
-		# 			return tf.identity(safe_norm, name=name)
-		# 		###
-
-
-		# 		lins = tf.linspace(0.0, DIMZ*DIMY*DIMX, DIMZ*DIMY*DIMX)
-		# 		lins = tf.cast(lins, tf.int32)
-		# 		# lins = lins / tf.reduce_max(lins) * 255
-		# 		# lins = cvt2tanh(lins)
-		# 		# lins = tf.reshape(lins, tf.shape(y_true), name='lins_3d')
-		# 		# print lins
-		# 		lins_z = tf.div(lins,(DIMY*DIMX))
-		# 		lins_y = tf.div(tf.mod(lins,(DIMY*DIMX)), DIMY)
-		# 		lins_x = tf.mod(tf.mod(lins,(DIMY*DIMX)), DIMY)
-
-		# 		lins   = tf.cast(lins  , tf.float32)
-		# 		lins_z = tf.cast(lins_z, tf.float32)
-		# 		lins_y = tf.cast(lins_y, tf.float32)
-		# 		lins_x = tf.cast(lins_x, tf.float32)
-
-		# 		lins   = lins 	/ tf.reduce_max(lins) * 255
-		# 		lins_z = lins_z / tf.reduce_max(lins_z) * 255
-		# 		lins_y = lins_y / tf.reduce_max(lins_y) * 255
-		# 		lins_x = lins_x / tf.reduce_max(lins_x) * 255
-
-		# 		lins   = cvt2tanh(lins)
-		# 		lins_z = cvt2tanh(lins_z)
-		# 		lins_y = cvt2tanh(lins_y)
-		# 		lins_x = cvt2tanh(lins_x)
-
-		# 		lins   = tf.reshape(lins,   tf.shape(y_true), name='lins')
-		# 		lins_z = tf.reshape(lins_z, tf.shape(y_true), name='lins_z')
-		# 		lins_y = tf.reshape(lins_y, tf.shape(y_true), name='lins_y')
-		# 		lins_x = tf.reshape(lins_x, tf.shape(y_true), name='lins_x')
-
-		# 		y_true = tf.reshape(y_true, [DIMZ*DIMY*DIMX])
-		# 		y_pred = tf.concat([y_pred, lins, lins_z, lins_y, lins_x], axis=-1)
-
-		# 		nDim = tf.shape(y_pred)[-1]
-		# 		X = tf.reshape(y_pred, [DIMZ*DIMY*DIMX, nDim])
-		# 		uniqueLabels, uniqueInd = tf.unique(y_true)
-
-		# 		numUnique = tf.size(uniqueLabels) # Get the number of connected component
-
-		# 		Sigma = tf.unsorted_segment_sum(X, uniqueInd, numUnique)
-		# 		# ones_Sigma = tf.ones((tf.shape(X)[0], 1))
-		# 		ones_Sigma = tf.ones_like(X)
-		# 		ones_Sigma = tf.unsorted_segment_sum(ones_Sigma, uniqueInd, numUnique)
-		# 		mu = tf.divide(Sigma, ones_Sigma)
-
-		# 		Lreg = tf.reduce_mean(tf.norm(mu, axis=1, ord=1))
-
-		# 		T = tf.norm(tf.subtract(tf.gather(mu, uniqueInd), X), axis = 1, ord=1)
-		# 		T = tf.divide(T, Lreg)
-		# 		T = tf.subtract(T, delta_v)
-		# 		T = tf.clip_by_value(T, 0, T)
-		# 		T = tf.square(T)
-
-		# 		ones_Sigma = tf.ones_like(uniqueInd, dtype=tf.float32)
-		# 		ones_Sigma = tf.unsorted_segment_sum(ones_Sigma, uniqueInd, numUnique)
-		# 		clusterSigma = tf.unsorted_segment_sum(T, uniqueInd, numUnique)
-		# 		clusterSigma = tf.divide(clusterSigma, ones_Sigma)
-
-		# 		# Lvar = tf.reduce_mean(clusterSigma, axis=0)
-		# 		Lvar = tf.reduce_mean(clusterSigma)
-
-		# 		mu_interleaved_rep = tf.tile(mu, [numUnique, 1])
-		# 		mu_band_rep = tf.tile(mu, [1, numUnique])
-		# 		mu_band_rep = tf.reshape(mu_band_rep, (numUnique*numUnique, nDim))
-
-		# 		mu_diff = tf.subtract(mu_band_rep, mu_interleaved_rep)
-		# 				# Remove zero vector
-		# 				# intermediate_tensor = reduce_sum(tf.abs(x), 1)
-		# 				# zero_vector = tf.zeros(shape=(1,1), dtype=tf.float32)
-		# 				# bool_mask = tf.not_equal(intermediate_tensor, zero_vector)
-		# 				# omit_zeros = tf.boolean_mask(x, bool_mask)
-		# 		intermediate_tensor = tf.reduce_sum(tf.abs(mu_diff), 1)
-		# 		zero_vector = tf.zeros(shape=(1,1), dtype=tf.float32)
-		# 		bool_mask = tf.not_equal(intermediate_tensor, zero_vector)
-		# 		omit_zeros = tf.boolean_mask(mu_diff, bool_mask)
-		# 		mu_diff = tf.expand_dims(omit_zeros, axis=1)
-		# 		print mu_diff
-		# 		mu_diff = tf.norm(mu_diff, ord=1)
-		# 				# squared_norm = tf.reduce_sum(tf.square(s), axis=axis,keep_dims=True)
-		# 				# safe_norm = tf.sqrt(squared_norm + epsilon)
-		# 				# squared_norm = tf.reduce_sum(tf.square(omit_zeros), axis=-1,keep_dims=True)
-		# 				# safe_norm = tf.sqrt(squared_norm + 1e-6)
-		# 				# mu_diff = safe_norm
-
-		# 		mu_diff = tf.divide(mu_diff, Lreg)
-
-		# 		mu_diff = tf.subtract(2*delta_d, mu_diff)
-		# 		mu_diff = tf.clip_by_value(mu_diff, 0, mu_diff)
-		# 		mu_diff = tf.square(mu_diff)
-
-		# 		numUniqueF = tf.cast(numUnique, tf.float32)
-		# 		Ldist = tf.reduce_mean(mu_diff)        
-
-		# 		# L = alpha * Lvar + beta * Ldist + gamma * Lreg
-		# 		# L = tf.reduce_mean(L, keep_dims=True)
-		# 		L = tf.reduce_sum([alpha*Lvar, beta*Ldist, gamma*Lreg], keep_dims=False)
-		# 		print L
-		# 		print Ldist
-		# 		print Lvar
-		# 		print Lreg
-		# 		return tf.identity(L,  name=name)
-
-		# 	discrim_il  = regDLF(cvt2imag(pl, maxVal=MAX_LABEL), feat_il, name='discrim_il')
-		
-		# # custom loss for membr
-		# with tf.name_scope('affnt_loss'):
-		# 	# def seg_to_affs_op (seg, nhood=malis.mknhood3d(1), name=None):
-		# 	# 	np_func = lambda seg, nhood: malis.seg_to_affgraph (seg, nhood).astype(np.float32)
-		# 	# 	tf_func = tf.py_func (np_func, [seg, nhood], [tf.float32], name=name)
-		# 	# 	return tf_func[0]
-		# 	# def affnt_loss(y_true, y_pred, name='affnt_loss'):
-		# 	# 	loss = []
-		# 	# 	afft_z_true = tf.cast(
-		# 	# 					tf.equal(y_true[:-1,...], y_true[1:,...]), 
-		# 	# 					tf.float32)
-		# 	# 	afft_z_pred = tf.cast(
-		# 	# 					tf.equal(y_pred[:-1,...], y_pred[1:,...]), 
-		# 	# 					tf.float32)
-		# 	# 	#loss_afft_z = tf.reduce_mean(tf.abs(afft_z_true - afft_z_pred))
-		# 	# 	loss_afft_z = tf.reduce_mean(tf.subtract(binary_cross_entropy(afft_z_true, afft_z_pred), 
-		# 	# 						 dice_coe(afft_z_true, afft_z_pred, axis=[0,1,2,3], loss_type='jaccard')))
-		# 	# 	loss.append(loss_afft_z)
-
-		# 	# 	afft_y_true = tf.cast(
-		# 	# 					tf.equal(y_true[:,:-1,...], y_true[:,1:,...]), 
-		# 	# 					tf.float32)
-		# 	# 	afft_y_pred = tf.cast(
-		# 	# 					tf.equal(y_pred[:,:-1,...], y_pred[:,1:,...]), 
-		# 	# 					tf.float32)
-		# 	# 	#loss_afft_y = tf.reduce_mean(tf.abs(afft_y_true - afft_y_pred))
-		# 	# 	loss_afft_y = tf.reduce_mean(tf.subtract(binary_cross_entropy(afft_y_true, afft_y_pred), 
-		# 	# 						 dice_coe(afft_y_true, afft_y_pred, axis=[0,1,2,3], loss_type='jaccard')))
-		# 	# 	loss.append(loss_afft_y)
-
-		# 	# 	afft_x_true = tf.cast(
-		# 	# 					tf.equal(y_true[:,:,:-1,...], y_true[:,:,1:,...]), 
-		# 	# 					tf.float32)
-		# 	# 	afft_x_pred = tf.cast(
-		# 	# 					tf.equal(y_pred[:,:,:-1,...], y_pred[:,:,1:,...]), 
-		# 	# 					tf.float32)
-		# 	# 	# loss_afft_x = tf.reduce_mean(tf.abs(afft_x_true - afft_x_pred))
-		# 	# 	loss_afft_x = tf.reduce_mean(tf.subtract(binary_cross_entropy(afft_x_true, afft_x_pred), 
-		# 	# 						 dice_coe(afft_x_true, afft_x_pred, axis=[0,1,2,3], loss_type='jaccard')))
-
-		# 	# 	loss.append(loss_afft_x)
-
-		# 	# 	return tf.reduce_mean(loss, name=name)
-
-		# 	affnt_il  = affnt_loss(pl, pil, name='affnt_il')
-
-
-		# # custom loss for label
-		# with tf.name_scope('label_loss'):
-		# 	def label_loss_op(y_pred_L, name='label_loss_op'):
-		# 		g_mag_grad_M = tf.cast(tf.greater(y_pred_L, -1.0*tf.ones_like(y_pred_L)), tf.float32) # cvt2imag(y_grad_M, maxVal=1.0)
-		# 		mag_grad_L   = magnitute_central_difference(y_pred_L, name='mag_grad_L')
-		# 		cond = tf.greater(mag_grad_L, tf.zeros_like(mag_grad_L))
-		# 		thresholded_mag_grad_L = tf.where(cond, 
-		# 								   tf.ones_like(mag_grad_L), 
-		# 								   tf.zeros_like(mag_grad_L), 
-		# 								   name='thresholded_mag_grad_L')
-
-		# 		gtv_guess = tf.multiply(g_mag_grad_M, thresholded_mag_grad_L, name='gtv_guess')
-		# 		loss_gtv_guess = tf.reduce_mean(gtv_guess, name='loss_gtv_guess')
-		# 		# loss_gtv_guess = tf.reshape(loss_gtv_guess, [-1])
-		# 		thresholded_mag_grad_L = cvt2tanh(thresholded_mag_grad_L, maxVal=1.0)
-		# 		gtv_guess = cvt2tanh(gtv_guess, maxVal=1.0)
-		# 		return tf.identity(loss_gtv_guess, name=name), thresholded_mag_grad_L
-
-		# 	label_il, g_il = label_loss_op(pil, name='label_im')
-		# 	label_l,  g_l  = label_loss_op(pl, name='label_l')
-
-		# # custom loss for malis
-		# with tf.name_scope('malis_loss'):
-		# 	malis_il = malis_loss_op (pl, pil, nhood=malis.mknhood3d(1), name='malis_il')
-
-
-
-		# self.g_loss = tf.reduce_sum([
-		# 						1*(G_loss), 
-		# 						10*(recon_il), 
-		# 						10*(equal_il), 
-		# 						1e-5*(malis_il), 
-		# 						1*(rand_il), 
-		# 						1*(label_il), 
-		# 						20*(discrim_il), 
-		# 						0.002*affnt_il, 		
-		# 						], name='G_loss_total')
-		# self.d_loss = tf.reduce_sum([
-		# 						D_loss
-		# 						], name='D_loss_total')
-
-		# wd_g = regularize_cost('gen/.*/W', 		l2_regularizer(1e-5), name='G_regularize')
-		# wd_d = regularize_cost('discrim/.*/W', 	l2_regularizer(1e-5), name='D_regularize')
-
-		# self.g_loss = tf.add(self.g_loss, wd_g, name='g_loss')
-		# self.d_loss = tf.add(self.d_loss, wd_d, name='d_loss')
-
-	
-
-		# self.collect_variables()
-
-		# add_moving_summary(self.d_loss, self.g_loss)
-		# # with tf.name_scope('summaries'):	
-		# # 	add_tensor_summary(equal_il, 		types=['scalar'], name='equal_il')
-		# # 	add_tensor_summary(malis_il, 		types=['scalar'], name='malis_il')
-		# # 	add_tensor_summary(recon_il, 		types=['scalar'], name='recon_il')
-		# # 	add_tensor_summary(rand_il, 		types=['scalar'], name='rand_il')
-		# # 	add_tensor_summary(discrim_il, 		types=['scalar'], name='discrim_il')
-		# # 	add_tensor_summary(affnt_il, 		types=['scalar'], name='affnt_il')
-		# # 	add_tensor_summary(label_il, 		types=['scalar'], name='label_il')
-			
-		# def label_imag(y_pred_L, name='label_imag'):
-		# 	mag_grad_L   = magnitute_central_difference(y_pred_L, name='mag_grad_L')
-		# 	cond = tf.greater(mag_grad_L, tf.zeros_like(mag_grad_L))
-		# 	thresholded_mag_grad_L = tf.where(cond, 
-		# 							   tf.ones_like(mag_grad_L), 
-		# 							   tf.zeros_like(mag_grad_L), 
-		# 							   name='thresholded_mag_grad_L')
-
-		# 	thresholded_mag_grad_L = cvt2tanh(thresholded_mag_grad_L, maxVal=1.0)
-		# 	return thresholded_mag_grad_L
-
-		# g_il =  label_imag(pil, name='label_il')
-		# g_l  =  label_imag(pl, name='label_l')
-		# viz = tf.concat([tf.concat([pi, pl,  g_l], 2), 
-		# 				 tf.concat([pl, pil, g_il], 2),
-		# 				 ], 1)
-		
-		# viz = cvt2imag(viz)
-		# viz = tf.cast(tf.clip_by_value(viz, 0, 255), tf.uint8, name='viz')
-		# tf.summary.image('colorized', viz, max_outputs=50)
 
 	def _get_optimizer(self):
 		lr = symbolic_functions.get_scalar_var('learning_rate', 2e-4, summary=True)
