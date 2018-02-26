@@ -48,7 +48,7 @@ SHAPE = 256
 BATCH = 1
 TEST_BATCH = 100
 EPOCH_SIZE = 100
-NB_FILTERS = 16  # channel size
+NB_FILTERS = 16	  # channel size
 
 DIMX  = 512
 DIMY  = 512
@@ -63,58 +63,61 @@ from malis import nodelist_like, malis_loss_weights
 
 
 
-def seg_to_affs_op (
-	seg, 
-	nhood=tf.constant(malis.mknhood3d(1)), 
-	name=None):
+def seg_to_aff_op(seg, nhood=tf.constant(malis.mknhood3d(1)), name=None):
+	# Squeeze the segmentation to 3D
 	seg = tf.squeeze(seg)
-	npy_func = lambda seg, nhood: malis.seg_to_affgraph (seg, nhood).astype(np.float32)
-	tf_func = tf.py_func (npy_func, [seg, nhood], [tf.float32], name=name)
+	# Define the numpy function to transform segmentation to affinity graph
+	np_func = lambda seg, nhood: malis.seg_to_affgraph (seg, nhood).astype(np.float32)
+	# Convert the numpy function to tensorflow function
+	tf_func = tf.py_func(np_func, [seg, nhood], [tf.float32], name=name)
+	# Reshape the result, notice that layout format from malis is 3, dimx, dimy, dimx
 	ret = tf.reshape(tf_func[0], [3, seg.shape[0], seg.shape[1], seg.shape[2]])
+	# Transpose the result so that the dimension 3 go to the last channel
 	ret = tf.transpose(ret, [1, 2, 3, 0])
-	print ret.get_shape().as_list()
+	# print ret.get_shape().as_list()
 	return ret
 
-def affs_to_seg_op (
-	affs, 
-	nhood=tf.constant (malis.mknhood3d(1)), 
-	threshold=tf.constant(np.array([0.5])), 
-	name=None):
-	def npy_func (affs, nhood, threshold):
-		affs = np.transpose(affs, [3, 0, 1, 2]) # zyx3 to 3zyx
-		ret = malis.connected_components_affgraph ((affs > threshold[0]).astype (np.int32), nhood)[0].astype (np.int32) 
-		ret = skimage.measure.label (ret).astype (np.int32)
+def aff_to_seg_op(aff, nhood=tf.constant(malis.mknhood3d(1)), threshold=tf.constant(np.array([0.5])), name=None):
+	# Define the numpy function to transform affinity to segmentation
+	def np_func (aff, nhood, threshold):
+		aff = np.transpose(aff, [3, 0, 1, 2]) # zyx3 to 3zyx
+		ret = malis.connected_components_affgraph((aff > threshold[0]).astype(np.int32), nhood)[0].astype(np.int32) 
+		ret = skimage.measure.label(ret).astype(np.int32)
 		return ret
-	print affs.get_shape().as_list()
-	tf_func = tf.py_func (npy_func, [affs, nhood, threshold], [tf.int32], name=name)
-	ret = tf.reshape(tf_func[0], [affs.shape[0], affs.shape[1], affs.shape[2]])
+	# print aff.get_shape().as_list()
+	# Convert numpy function to tensorflow function
+	tf_func = tf.py_func(np_func, [aff, nhood, threshold], [tf.int32], name=name)
+	ret = tf.reshape(tf_func[0], [aff.shape[0], aff.shape[1], aff.shape[2]])
 	ret = tf.expand_dims(ret, axis=-1)
-	print ret.get_shape().as_list()
+	# print ret.get_shape().as_list()
+	return ret
+
+def tf_rand_score (x1, x2):
+	def np_func (x1, x2):
+		ret = np.mean(1.0 - adjusted_rand_score (x1.flatten (), x2.flatten ()))
+		return ret
+	tf_func = tf.py_func(np_func, [x1,  x2], [tf.float64])
+	ret = tf_func[0]
+	ret = tf.cast(ret, tf.float32)
 	return ret
 
 # def tf_rand_score (x1, x2):
-# 	def npy_func (x1, x2):
-# 		ret = np.mean(1.0 - adjusted_rand_score (x1.flatten (), x2.flatten ()))
-# 		return ret
-# 	tf_func = tf.cast(tf.py_func (npy_func, [x1,  x2], tf.float64), tf.float32)
-# 	return tf_func
-def tf_rand_score (x1, x2):
-	return np.mean(1.0 - adjusted_rand_score (x1.flatten (), x2.flatten ()))
+# 	return np.mean(1.0 - adjusted_rand_score (x1.flatten (), x2.flatten ()))
 
-def toInt32Label(label, factor=MAX_LABEL):
+def toMaxLabels(label, factor=MAX_LABEL):
 	result = tf.cast(label, tf.float32)
-	condition  = tf.equal(result, -1.0*tf.ones_like(result))
-	result = tf.where(condition, tf.zeros_like(result), result, name='removedBackground') # From -1 to 0
+	status = tf.equal(result, -1.0*tf.ones_like(result))
+	result = tf.where(status, tf.zeros_like(result), result, name='removedBackground') # From -1 to 0
 	result = result * factor # From 0~1 to 0~MAXLABEL
 	result = tf.round(result)
 	return tf.cast(result, tf.int32)
 
 
-def toFloat32Label(label, factor=MAX_LABEL):
+def toRangeTanh(label, factor=MAX_LABEL):
 	label  = tf.cast(label, tf.float32)
 	result = label / factor # From 0~MAXLABEL to 0~1
-	condition = tf.equal(result, 0.0*tf.zeros_like(result))
-	result = tf.where(condition, -1.0*tf.ones_like(result), result, name='addedBackground') # From -1 to 0
+	status = tf.equal(result, 0.0*tf.zeros_like(result))
+	result = tf.where(status, -1.0*tf.ones_like(result), result, name='addedBackground') # From -1 to 0
 	return tf.cast(result, tf.float32)
 
 ###############################################################################
@@ -149,7 +152,7 @@ def magnitute_central_difference(image, name=None):
 		grad = tf.sqrt(tf.add(tf.square(Gx),tf.square(Gy))) # okay
 		return grad
 
-		loss_img = cvt2tanh(loss_img)
+		loss_img = tf_2tanh(loss_img)
 		return loss_val, loss_img
 ###############################################################################
 def INReLU(x, name=None):
@@ -167,11 +170,11 @@ def BNLReLU(x, name=None):
 
 ###############################################################################
 # Utility function for scaling 
-def cvt2tanh(x, maxVal = 255.0, name='ToRangeTanh'):
+def tf_2tanh(x, maxVal = 255.0, name='ToRangeTanh'):
 	with tf.variable_scope(name):
 		return (x / maxVal - 0.5) * 2.0
 ###############################################################################
-def cvt2imag(x, maxVal = 255.0, name='ToRangeImag'):
+def tf_2imag(x, maxVal = 255.0, name='ToRangeImag'):
 	with tf.variable_scope(name):
 		return (x / 2.0 + 0.5) * maxVal
 
@@ -580,12 +583,12 @@ class Model(GANModelDesc):
 		tf.local_variables_initializer()
 		tf.global_variables_initializer()
 		pi, pm, pl, ui, um, ul = inputs
-		pi = cvt2tanh(pi)
-		pm = cvt2tanh(pm)
-		pl = cvt2tanh(pl)
-		ui = cvt2tanh(ui)
-		um = cvt2tanh(um)
-		ul = cvt2tanh(ul)
+		pi = tf_2tanh(pi)
+		pm = tf_2tanh(pm)
+		pl = tf_2tanh(pl)
+		ui = tf_2tanh(ui)
+		um = tf_2tanh(um)
+		ul = tf_2tanh(ul)
 
 
 		
@@ -602,34 +605,31 @@ class Model(GANModelDesc):
 			
 
 			with tf.variable_scope('gen'):
-				with tf.variable_scope('label'):
-					pil, feat_il  = self.generator(pi, last_dim=1)
+				
 				with tf.variable_scope('affnt'):
 					pia, feat_ia  = self.generator(pi, last_dim=3)
+				with tf.variable_scope('label'):
+					pil, feat_il  = self.generator(pi, last_dim=1)
 			
-			# Round
-			pil = toInt32Label(pil, factor=MAX_LABEL) #0 MAX
-			pil = toFloat32Label(pil, factor=MAX_LABEL) # -1 1
 
 
 			# 
-			with tf.variable_scope('fix'):
-				pa   = seg_to_affs_op(toInt32Label(pl, factor=MAX_LABEL),   name='pa') # Calculate the affinity 	#0, 1
-				pila = seg_to_affs_op(toInt32Label(pil, factor=MAX_LABEL),  name='pila') # Calculate the affinity 	#0, 1
-				pia  = cvt2imag(pia, maxVal=1.0) # From -1,1 to 0,1 
+			with G.gradient_override_map({"round": "Identity"}):
+				with tf.variable_scope('fix'):
+					# Round
+					pil  = toMaxLabels(pil, factor=MAX_LABEL) #0 MAX
+					pil  = toRangeTanh(pil, factor=MAX_LABEL) # -1 1
+					
+					pa   = seg_to_aff_op(toMaxLabels(pl, factor=MAX_LABEL),   name='pa') # Calculate the affinity 	#0, 1
+					pila = seg_to_aff_op(toMaxLabels(pil, factor=MAX_LABEL),  name='pila') # Calculate the affinity 	#0, 1
 
-				pial = affs_to_seg_op(pia, name='pial') # Calculate the segmentation
-				pial = toFloat32Label(pial, factor=MAX_LABEL) # -1, 1
+					pial = aff_to_seg_op(tf_2imag(pia, maxVal=1.0), name='pial') # Calculate the segmentation
+					pial = toRangeTanh(pial, factor=MAX_LABEL) # -1, 1
 
-				pil_ = (pial + pil) / 2.0 # Return the result
-				pia_ = (pila + pia) / 2.0
+					pil_ = (pial + pil) / 2.0 # Return the result
+					pia_ = (pila + pia) / 2.0
 
 			with tf.variable_scope('discrim'):
-				# print pi 
-				# print pl 
-				# print pa
-				# print pil_ 
-				# print pia_
 				print pial
 				print pil
 				dis_real = self.discriminator(tf.concat([pi, pl, pa], axis=-1))
@@ -639,8 +639,8 @@ class Model(GANModelDesc):
 				G_loss, D_loss = self.build_losses(dis_real, dis_fake, name='gan_loss')
 
 			with tf.name_scope('rand_loss'):
-				# rand_il  = tf.reduce_mean(tf_rand_score(pl, pil_), name='rand_loss')
-				rand_il  = tf.reduce_mean(tf.cast(tf.py_func (tf_rand_score, [pl, pil_], tf.float64), tf.float32), name='rand_loss')
+				rand_il  = tf.reduce_mean(tf_rand_score(pl, pil_), name='rand_loss')
+				# rand_il  = tf.reduce_mean(tf.cast(tf.py_func (tf_rand_score, [pl, pil_], tf.float64), tf.float32), name='rand_loss')
 			with tf.name_scope('discrim_loss'):
 				def regDLF(y_true, y_pred, alpha=1, beta=1, gamma=0.01, delta_v=0.5, delta_d=1.5, name='loss_discrim'):
 					def tf_norm(inputs, axis=1, epsilon=1e-7,  name='safe_norm'):
@@ -653,7 +653,7 @@ class Model(GANModelDesc):
 					lins = tf.linspace(0.0, DIMZ*DIMY*DIMX, DIMZ*DIMY*DIMX)
 					lins = tf.cast(lins, tf.int32)
 					# lins = lins / tf.reduce_max(lins) * 255
-					# lins = cvt2tanh(lins)
+					# lins = tf_2tanh(lins)
 					# lins = tf.reshape(lins, tf.shape(y_true), name='lins_3d')
 					# print lins
 					lins_z = tf.div(lins,(DIMY*DIMX))
@@ -670,10 +670,10 @@ class Model(GANModelDesc):
 					lins_y = lins_y / tf.reduce_max(lins_y) * 255
 					lins_x = lins_x / tf.reduce_max(lins_x) * 255
 
-					lins   = cvt2tanh(lins)
-					lins_z = cvt2tanh(lins_z)
-					lins_y = cvt2tanh(lins_y)
-					lins_x = cvt2tanh(lins_x)
+					lins   = tf_2tanh(lins)
+					lins_z = tf_2tanh(lins_z)
+					lins_y = tf_2tanh(lins_y)
+					lins_x = tf_2tanh(lins_x)
 
 					lins   = tf.reshape(lins,   tf.shape(y_true), name='lins')
 					lins_z = tf.reshape(lins_z, tf.shape(y_true), name='lins_z')
@@ -751,7 +751,8 @@ class Model(GANModelDesc):
 					print Lvar
 					print Lreg
 					return tf.identity(L,  name=name)
-				discrim_il  = regDLF(toInt32Label(pl, factor=MAX_LABEL), feat_il, name='discrim_il')
+				discrim_il  = regDLF(toMaxLabels(pl, factor=MAX_LABEL), 
+									 tf.concat([feat_il, feat_ia], axis=-1), name='discrim_il')
 			with tf.name_scope('recon_loss'):		
 				recon_il = tf.reduce_mean(tf.abs(pl - pil_), name='recon_il')
 			with tf.name_scope('affnt_loss'):		
@@ -772,7 +773,7 @@ class Model(GANModelDesc):
 										   tf.zeros_like(mag_grad_L), 
 										   name='thresholded_mag_grad_L')
 
-				thresholded_mag_grad_L = cvt2tanh(thresholded_mag_grad_L, maxVal=1.0)
+				thresholded_mag_grad_L = tf_2tanh(thresholded_mag_grad_L, maxVal=1.0)
 				return thresholded_mag_grad_L
 
 			g_il =  label_imag(pil_, name='label_il')
@@ -813,14 +814,14 @@ class Model(GANModelDesc):
 						 
 						 ], 1)
 		
-		viz = cvt2imag(viz)
+		viz = tf_2imag(viz)
 		viz = tf.cast(tf.clip_by_value(viz, 0, 255), tf.uint8, name='viz')
 		tf.summary.image('colorized', viz, max_outputs=50)
 
 		# Affinity
 		vis = tf.concat([pa, pila, pia, pia_ ], 2)
 		
-		vis = cvt2imag(vis)
+		vis = tf_2imag(vis)
 		vis = tf.cast(tf.clip_by_value(vis, 0, 255), tf.uint8, name='vis')
 		tf.summary.image('affinities', vis, max_outputs=50)
 
