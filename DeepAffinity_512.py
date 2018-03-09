@@ -39,30 +39,28 @@ class Model(ModelDesc):
 		ul = tf_2tanh(ul)
 
 		# Calculate affinity
-		pa = toRangeTanh(seg_to_aff_op(toMaxLabels(pl, factor=MAX_LABEL)),  factor=1.0) # Calculate the affinity 	#0, 1
+		pa = tf_2tanh(seg_to_aff_op(toMaxLabels(pl, factor=MAX_LABEL)),  maxVal=1.0) # Calculate the affinity 	#0, 1
 
 		with tf.variable_scope('gen'):
 			pia, _  = self.generator(pi, last_dim=3)
 
 		# Calculate the loss
 		losses = []
-		# with tf.name_scope('aff_loss'):		
-		# 	# affnt_il = tf.reduce_mean(tf.abs(pa - pia_), name='affnt_il')
-		# 	aff_ia = tf.reduce_mean(tf.subtract(binary_cross_entropy(toMaxLabels(pa, factor=1.0), toMaxLabels(pia, factor=1.0)), 
-		# 					   					  dice_coe(toMaxLabels(pa, factor=1.0), toMaxLabels(pia, factor=1.0), axis=[0,1,2,3], loss_type='jaccard')))
-		# 	# affnt_il = tf.reduce_mean(tf.subtract(binary_cross_entropy(pa, pia_), 
-		# 	# 					   dice_coe(pa, pia_, axis=[0,1,2,3], loss_type='jaccard')))
-		# 	losses.append(aff_ia)
-		# 	add_moving_summary(aff_ia)
+		with tf.name_scope('aff_loss'):		
+			aff_ia = tf.subtract(binary_cross_entropy(tf_2imag(pa, maxVal=1.0), tf_2imag(pia, maxVal=1.0)), 
+					    		 dice_coe(tf_2imag(pa, maxVal=1.0), tf_2imag(pia, maxVal=1.0), axis=[0,1,2,3], loss_type='jaccard'))
+			losses.append(aff_ia)
+			add_moving_summary(aff_ia)
 
 		with tf.name_scope('abs_loss'):		
 			abs_ia = tf.reduce_mean(tf.abs(pa - pia), name='abs_loss')
+			# abs_ia = absolute_difference_error(pa, pia)
 			losses.append(abs_ia)
 			add_moving_summary(abs_ia)	
 
 		self.cost = tf.reduce_sum(losses)
 		# Visualization
-		#Segmentation
+		# Segmentation
 		viz = tf.concat([tf.concat([pi, pa [:,:,:,0:1], pa [:,:,:,1:2], pa [:,:,:,2:3]], 2), 
 						 tf.concat([pl, pia[:,:,:,0:1], pia[:,:,:,1:2], pia[:,:,:,2:3]], 2), 
 						 ], 1)
@@ -149,21 +147,10 @@ if __name__ == '__main__':
 	valid_ds = get_data(args.data, isTrain=False, isValid=True, isTest=False)
 	# test_ds  = get_data(args.data, isTrain=False, isValid=False, isTest=True)
 
-	# train_ds = PrintData(train_ds)
-	# valid_ds = PrintData(valid_ds)
-	# test_ds  = PrintData(test_ds)
-	# Augmentation is here
-	
 
-	# data_set  = ConcatData([train_ds, valid_ds])
-	data_set  = train_ds
-	# data_set  = LocallyShuffleData(data_set, buffer_size=4)
-	# data_set  = AugmentImageComponent(data_set, augmentors, (0)) # Only apply for the image
-
-
-	data_set  = PrintData(data_set)
-	data_set  = PrefetchDataZMQ(data_set, 8)
-	data_set  = QueueInput(data_set)
+	train_ds  = PrintData(train_ds)
+	train_ds  = PrefetchDataZMQ(train_ds, 8)
+	# train_ds  = QueueInput(train_ds)
 	model 	  = Model()
 
 	os.environ['PYTHONWARNINGS'] = 'ignore'
@@ -182,7 +169,7 @@ if __name__ == '__main__':
 		# Set the logger directory
 		logger.auto_set_dir()
 
-		session_init = SaverRestore(args.load) if args.load else None, 
+		# session_init = SaverRestore(args.load) if args.load else None, 
 
 		# Set up configuration
 		config = TrainConfig(
