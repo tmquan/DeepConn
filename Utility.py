@@ -46,7 +46,7 @@ NB_FILTERS = 32	  # channel size
 
 DIMX  = 320
 DIMY  = 320
-DIMZ  = 50
+DIMZ  = 20
 DIMC  = 1
 
 MAX_LABEL = 320
