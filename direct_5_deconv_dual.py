@@ -52,7 +52,7 @@ NB_FILTERS = 16	  # channel size
 
 DIMX  = 512
 DIMY  = 512
-DIMZ  = 3
+DIMZ  = 5
 DIMC  = 1
 
 MAX_LABEL = 320
@@ -229,9 +229,9 @@ def residual_dec(x, chan, first=False):
 	with argscope([Conv2D, Deconv2D], nl=INLReLU, stride=1, kernel_shape=3):
 				
 		x = (LinearWrap(x)
-			.Subpix2D('deconv_i', chan, scale=1) 
+			.Deconv2D('deconv_i', chan, stride=1) 
 			.residual('res2_', chan, first=True)
-			.Subpix2D('deconv_o', chan, scale=2) 
+			.Deconv2D('deconv_o', chan, stride=2) 
 			# .Dropout('drop', 0.75)
 			())
 		return x
@@ -246,7 +246,7 @@ def arch_generator(img, last_dim=1):
 		e2 = residual_enc('e2',  e1, NB_FILTERS*4)
 
 		e3 = residual_enc('e3',  e2, NB_FILTERS*8)
-		e3 = Dropout('dr', e3, 0.5)
+		# e3 = Dropout('dr', e3, 0.5)
 
 		d3 = residual_dec('d3',    e3, NB_FILTERS*4)
 		d2 = residual_dec('d2', d3+e2, NB_FILTERS*2)
@@ -262,7 +262,7 @@ def arch_discriminator(img):
 	with argscope([Conv2D, Deconv2D], nl=INLReLU, kernel_shape=3, stride=2, padding='SAME'):
 		img = Conv2D('conv0', img, NB_FILTERS, nl=tf.nn.leaky_relu)
 		e0 = residual_enc('e0', img, NB_FILTERS*1)
-		e0 = Dropout('dr', e0, 0.5)
+		# e0 = Dropout('dr', e0, 0.5)
 		e1 = residual_enc('e1',  e0, NB_FILTERS*2)
 		e2 = residual_enc('e2',  e1, NB_FILTERS*4)
 
@@ -370,6 +370,12 @@ class ImageDataFlow(RNGDataFlow):
 			randx = np.random.randint(0, dimx-DIMX+1)
 			# label_u = label_u[randz:randz+DIMZ,randy:randy+DIMY,randx:randx+DIMX]
 			label_u = label_u[randz:randz+DIMZ,heady::2,headx::2]
+
+
+
+			
+			
+			
 
 
 
@@ -601,6 +607,7 @@ class Model(GANModelDesc):
 			
 
 			with tf.variable_scope('gen'):
+				
 				with tf.variable_scope('affnt'):
 					pia, feat_ia  = self.generator(pi, last_dim=3)
 				with tf.variable_scope('label'):
@@ -608,10 +615,11 @@ class Model(GANModelDesc):
 			
 
 
-			# 			
+			# 
+			
 
 			with tf.variable_scope('discrim'):
-				dis_real = self.discriminator(tf.concat([pi, pl, pa],   axis=-1))
+				dis_real = self.discriminator(tf.concat([pi, pl, pa], axis=-1))
 				dis_fake = self.discriminator(tf.concat([pi, pil, pia], axis=-1))
 
 		with G.gradient_override_map({"Round": "Identity"}):
@@ -745,7 +753,7 @@ class Model(GANModelDesc):
 				print Lreg
 				return tf.identity(L,  name=name)
 			discrim_il  = regDLF(toMaxLabels(pl, factor=MAX_LABEL), 
-								 tf.concat([pil_, pia_, feat_il, feat_ia], axis=-1), name='discrim_il')
+								 tf.concat([feat_il, feat_ia], axis=-1), name='discrim_il')
 		with tf.name_scope('recon_loss'):		
 			recon_il = tf.reduce_mean(tf.abs(pl - pil_), name='recon_il')
 		with tf.name_scope('affnt_loss'):		

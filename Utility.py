@@ -1,7 +1,7 @@
 # Hidden 2 domains no constrained
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import os, sys, argparse, glob
+import os, sys, argparse, glob, time
 
 # from __future__ import absolute_import
 # from __future__ import division
@@ -49,7 +49,7 @@ DIMY  = 320
 DIMZ  = 20
 DIMC  = 1
 
-MAX_LABEL = 320
+MAX_LABEL = 200
 ###############################################################################
 def seg_to_aff_op(seg, nhood=tf.constant(malis.mknhood3d(1)), name=None):
 	# Squeeze the segmentation to 3D
@@ -96,6 +96,15 @@ def toRangeTanh(label, factor=MAX_LABEL):
 	status = tf.equal(result, 0.0*tf.zeros_like(result))
 	result = tf.where(status, -1.0*tf.ones_like(result), result, name='addedBackground') # From -1 to 0
 	return tf.cast(result, tf.float32)
+###############################################################################
+def tf_rand_score (x1, x2):
+	def np_func (x1, x2):
+		ret = np.mean(1.0 - adjusted_rand_score (x1.flatten (), x2.flatten ()))
+		return ret
+	tf_func = tf.py_func(np_func, [x1,  x2], [tf.float64])
+	ret = tf_func[0]
+	ret = tf.cast(ret, tf.float32)
+	return ret
 ###############################################################################
 def INReLU(x, name=None):
 	x = InstanceNorm('inorm', x)
@@ -253,7 +262,7 @@ class ImageDataFlow(RNGDataFlow):
 			#
 			# Pick randomly a tuple of training instance
 			#
-			rand_index = np.random.randint(0, len(images))
+			rand_index = self.rng.randint(0, len(images))
 			image_p = skimage.io.imread(images[rand_index])
 			label_p = skimage.io.imread(labels[rand_index])
 			membr_p = label_p.copy()
@@ -262,9 +271,9 @@ class ImageDataFlow(RNGDataFlow):
 			#
 			# Pick randomly a tuple of training instance
 			#
-			rand_image = np.random.randint(0, len(images))
-			rand_membr = np.random.randint(0, len(images))
-			rand_label = np.random.randint(0, len(images))
+			rand_image = self.rng.randint(0, len(images))
+			rand_membr = self.rng.randint(0, len(images))
+			rand_label = self.rng.randint(0, len(images))
 
 
 			# image_u = skimage.io.imread(images[rand_image])
@@ -278,18 +287,18 @@ class ImageDataFlow(RNGDataFlow):
 			# Cut 1 or 3 slices along z, by define DIMZ, the same for paired, randomly for unpaired
 			dimz, dimy, dimx = image_u.shape
 
-			seed = np.random.randint(0, 20152015)
-			seed_image = np.random.randint(0, 2015)
-			seed_membr = np.random.randint(0, 2015)
-			seed_label = np.random.randint(0, 2015)
-			np.random.seed(seed)
+			seed = 		np.array(time.time()).astype(np.int64) #self.rng.randint(0, 20152015)
+			# seed_image = time.time() #self.rng.randint(0, 2015)
+			# seed_membr = time.time() #self.rng.randint(0, 2015)
+			# seed_label = time.time() #self.rng.randint(0, 2015)
+			# np.random.seed(seed)
 
 			# # The same for pair
-			# randz = np.random.randint(0, dimz-DIMZ+1)
-			# randy = np.random.randint(0, dimy-DIMY+1)
-			# randx = np.random.randint(0, dimx-DIMX+1)
-			# headx = np.random.randint(0, 2)
-			# heady = np.random.randint(0, 2)
+			# randz = self.rng.randint(0, dimz-DIMZ+1)
+			# randy = self.rng.randint(0, dimy-DIMY+1)
+			# randx = self.rng.randint(0, dimx-DIMX+1)
+			# headx = self.rng.randint(0, 2)
+			# heady = self.rng.randint(0, 2)
 			# # image_p = image_p[randz:randz+DIMZ,randy:randy+DIMY,randx:randx+DIMX]
 			# # membr_p = membr_p[randz:randz+DIMZ,randy:randy+DIMY,randx:randx+DIMX]
 			# # label_p = label_p[randz:randz+DIMZ,randy:randy+DIMY,randx:randx+DIMX]
@@ -298,19 +307,19 @@ class ImageDataFlow(RNGDataFlow):
 			# label_p = label_p[randz:randz+DIMZ,heady::2,headx::2]
 
 			# # Randomly for unpaired for pair
-			# randz = np.random.randint(0, dimz-DIMZ+1)
-			# randy = np.random.randint(0, dimy-DIMY+1)
-			# randx = np.random.randint(0, dimx-DIMX+1)
+			# randz = self.rng.randint(0, dimz-DIMZ+1)
+			# randy = self.rng.randint(0, dimy-DIMY+1)
+			# randx = self.rng.randint(0, dimx-DIMX+1)
 			# # image_u = image_u[randz:randz+DIMZ,randy:randy+DIMY,randx:randx+DIMX]
 			# image_u = image_u[randz:randz+DIMZ,heady::2,headx::2]
-			# randz = np.random.randint(0, dimz-DIMZ+1)
-			# randy = np.random.randint(0, dimy-DIMY+1)
-			# randx = np.random.randint(0, dimx-DIMX+1)
+			# randz = self.rng.randint(0, dimz-DIMZ+1)
+			# randy = self.rng.randint(0, dimy-DIMY+1)
+			# randx = self.rng.randint(0, dimx-DIMX+1)
 			# # membr_u = membr_u[randz:randz+DIMZ,randy:randy+DIMY,randx:randx+DIMX]
 			# membr_u = membr_u[randz:randz+DIMZ,heady::2,headx::2]
-			# randz = np.random.randint(0, dimz-DIMZ+1)
-			# randy = np.random.randint(0, dimy-DIMY+1)
-			# randx = np.random.randint(0, dimx-DIMX+1)
+			# randz = self.rng.randint(0, dimz-DIMZ+1)
+			# randy = self.rng.randint(0, dimy-DIMY+1)
+			# randx = self.rng.randint(0, dimx-DIMX+1)
 			# # label_u = label_u[randz:randz+DIMZ,randy:randy+DIMY,randx:randx+DIMX]
 			# label_u = label_u[randz:randz+DIMZ,heady::2,headx::2]
 
@@ -356,27 +365,27 @@ class ImageDataFlow(RNGDataFlow):
 				# label_u = self.random_elastic(label_u, seed=seed_label)
 
 			# The same for pair
-			randz = np.random.randint(0, dimz-DIMZ+1)
-			randy = np.random.randint(0, dimy-DIMY+1)
-			randx = np.random.randint(0, dimx-DIMX+1)
+			randz = self.rng.randint(0, dimz-DIMZ+1)
+			randy = self.rng.randint(0, dimy-DIMY+1)
+			randx = self.rng.randint(0, dimx-DIMX+1)
 			image_p = image_p[randz:randz+DIMZ,randy:randy+DIMY,randx:randx+DIMX]
 			membr_p = membr_p[randz:randz+DIMZ,randy:randy+DIMY,randx:randx+DIMX]
 			label_p = label_p[randz:randz+DIMZ,randy:randy+DIMY,randx:randx+DIMX]
 
 			# Randomly for unpaired for pair
-			randz = np.random.randint(0, dimz-DIMZ+1)
-			randy = np.random.randint(0, dimy-DIMY+1)
-			randx = np.random.randint(0, dimx-DIMX+1)
+			randz = self.rng.randint(0, dimz-DIMZ+1)
+			randy = self.rng.randint(0, dimy-DIMY+1)
+			randx = self.rng.randint(0, dimx-DIMX+1)
 			image_u = image_u[randz:randz+DIMZ,randy:randy+DIMY,randx:randx+DIMX]
 
-			randz = np.random.randint(0, dimz-DIMZ+1)
-			randy = np.random.randint(0, dimy-DIMY+1)
-			randx = np.random.randint(0, dimx-DIMX+1)
+			randz = self.rng.randint(0, dimz-DIMZ+1)
+			randy = self.rng.randint(0, dimy-DIMY+1)
+			randx = self.rng.randint(0, dimx-DIMX+1)
 			membr_u = membr_u[randz:randz+DIMZ,randy:randy+DIMY,randx:randx+DIMX]
 
-			randz = np.random.randint(0, dimz-DIMZ+1)
-			randy = np.random.randint(0, dimy-DIMY+1)
-			randx = np.random.randint(0, dimx-DIMX+1)
+			randz = self.rng.randint(0, dimz-DIMZ+1)
+			randy = self.rng.randint(0, dimy-DIMY+1)
+			randx = self.rng.randint(0, dimx-DIMX+1)
 			label_u = label_u[randz:randz+DIMZ,randy:randy+DIMY,randx:randx+DIMX]
 
 
@@ -432,8 +441,8 @@ class ImageDataFlow(RNGDataFlow):
 	def random_flip(self, image, seed=None):
 		assert ((image.ndim == 2) | (image.ndim == 3))
 		if seed:
-			np.random.seed(seed)
-		random_flip = np.random.randint(1,5)
+			self.rng.seed(seed)
+		random_flip = self.rng.randint(1,5)
 		if random_flip==1:
 			flipped = image[...,::1,::-1]
 			image = flipped
@@ -451,8 +460,8 @@ class ImageDataFlow(RNGDataFlow):
 	def random_reverse(self, image, seed=None):
 		assert ((image.ndim == 2) | (image.ndim == 3))
 		if seed:
-			np.random.seed(seed)
-		random_reverse = np.random.randint(1,3)
+			self.rng.seed(seed)
+		random_reverse = self.rng.randint(1,3)
 		if random_reverse==1:
 			reverse = image[::1,...]
 		elif random_reverse==2:
@@ -463,8 +472,8 @@ class ImageDataFlow(RNGDataFlow):
 	def random_square_rotate(self, image, seed=None):
 		assert ((image.ndim == 2) | (image.ndim == 3))
 		if seed:
-			np.random.seed(seed)        
-		random_rotatedeg = 90*np.random.randint(0,4)
+			self.rng.seed(seed)        
+		random_rotatedeg = 90*self.rng.randint(0,4)
 		rotated = image.copy()
 		from scipy.ndimage.interpolation import rotate
 		if image.ndim==2:
@@ -482,10 +491,10 @@ class ImageDataFlow(RNGDataFlow):
 			image = np.expand_dims(image, axis=0) # Make 3D
 		new_shape = image.shape
 		dimx, dimy = new_shape[1], new_shape[2]
-		size = np.random.randint(4,16) #4,32
-		ampl = np.random.randint(2, 5) #4,8
-		du = np.random.uniform(-ampl, ampl, size=(size, size)).astype(np.float32)
-		dv = np.random.uniform(-ampl, ampl, size=(size, size)).astype(np.float32)
+		size = self.rng.randint(4,16) #4,32
+		ampl = self.rng.randint(2, 5) #4,8
+		du = self.rng.uniform(-ampl, ampl, size=(size, size)).astype(np.float32)
+		dv = self.rng.uniform(-ampl, ampl, size=(size, size)).astype(np.float32)
 		# Done distort at boundary
 		du[ 0,:] = 0
 		du[-1,:] = 0
