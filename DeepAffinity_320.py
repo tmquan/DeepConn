@@ -44,26 +44,49 @@ class Model(ModelDesc):
 		with tf.variable_scope('gen'):
 			pia, _  = self.generator(pi, last_dim=3)
 
-		pia = tf.identity(pia, name='pia')
+		with G.gradient_override_map({"round": "Identity"}):
+			with tf.variable_scope('fix'):
+				# Round
+				# pil  = toMaxLabels(pil, factor=MAX_LABEL) #0 MAX
+				# pil  = tf.round(pil)
+				# pil  = toRangeTanh(pil, factor=MAX_LABEL) # -1 1				
+				pa   = tf_2tanh(seg_to_aff_op(toMaxLabels(pl, factor=MAX_LABEL),   name='pa'), maxVal=1.0) # Calculate the affinity 	#0, 1
+				pial = toRangeTanh(aff_to_seg_op(tf_2imag(pia, maxVal=1.0), name='pial'), factor=MAX_LABEL) # Calculate the segmentation
+				# pial = toRangeTanh(pial, factor=MAX_LABEL) # -1, 1
+
+		pia  = tf.identity(pia, name='pia')
+		pial = tf.identity(pial, name='pial')
 		# Calculate the loss
 		losses = []
+		with tf.name_scope('rand_loss'):
+			rand_ial  = tf.reduce_mean(tf_rand_score(toMaxLabels(pl,   factor=MAX_LABEL), 
+													 toMaxLabels(pial, factor=MAX_LABEL)), name='rand_ial')
+			losses.append(rand_ial)
+			add_moving_summary(rand_ial)
+
 		with tf.name_scope('aff_loss'):		
-			aff_ia = tf.subtract(binary_cross_entropy(tf_2imag(pa, maxVal=1.0), tf_2imag(pia, maxVal=1.0)), 
-					    		 dice_coe(tf_2imag(pa, maxVal=1.0), tf_2imag(pia, maxVal=1.0), axis=[0,1,2,3], loss_type='jaccard'))
+			aff_ia  = tf.identity(tf.subtract(binary_cross_entropy(tf_2imag(pa, maxVal=1.0), tf_2imag(pia, maxVal=1.0)), 
+					    		 			  dice_coe(tf_2imag(pa, maxVal=1.0), tf_2imag(pia, maxVal=1.0), axis=[0,1,2,3], loss_type='jaccard')),
+								 name='aff_ia')
 			losses.append(aff_ia)
 			add_moving_summary(aff_ia)
 
 		with tf.name_scope('abs_loss'):		
 			abs_ia = tf.reduce_mean(tf.abs(pa - pia), name='abs_loss')
-			# abs_ia = absolute_difference_error(pa, pia)
 			losses.append(abs_ia)
 			add_moving_summary(abs_ia)	
 
-		self.cost = tf.reduce_sum(losses)
+			abs_ial = tf.reduce_mean(tf.abs(pl - pial), name='abs_ial')
+			losses.append(abs_ial)
+			add_moving_summary(abs_ial)	
+
+		self.cost = tf.reduce_sum(losses, name='self.cost')
+		add_moving_summary(self.cost)	
 		# Visualization
 		# Segmentation
-		viz = tf.concat([tf.concat([pi, pa [:,:,:,0:1], pa [:,:,:,1:2], pa [:,:,:,2:3]], 2), 
-						 tf.concat([pl, pia[:,:,:,0:1], pia[:,:,:,1:2], pia[:,:,:,2:3]], 2), 
+		pz = tf.zeros_like(pi)
+		viz = tf.concat([tf.concat([pi, pl,   pa [:,:,:,0:1], pa [:,:,:,1:2], pa [:,:,:,2:3]], 2), 
+						 tf.concat([pz, pial, pia[:,:,:,0:1], pia[:,:,:,1:2], pia[:,:,:,2:3]], 2), 
 						 ], 1)
 
 		viz = tf_2imag(viz)
@@ -149,8 +172,8 @@ if __name__ == '__main__':
 	# test_ds  = get_data(args.data, isTrain=False, isValid=False, isTest=True)
 
 
+	train_ds  = PrefetchDataZMQ(train_ds, 16)
 	train_ds  = PrintData(train_ds)
-	train_ds  = PrefetchDataZMQ(train_ds, 8)
 	# train_ds  = QueueInput(train_ds)
 	model 	  = Model()
 

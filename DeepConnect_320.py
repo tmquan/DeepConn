@@ -42,10 +42,10 @@ class Model(ModelDesc):
 		pa = tf_2tanh(seg_to_aff_op(toMaxLabels(pl, factor=MAX_LABEL)),  maxVal=1.0) # Calculate the affinity 	#0, 1
 
 		with tf.variable_scope('gen'):
-			with tf.device('/device:GPU:0'):
+			# with tf.device('/device:GPU:0'):
 				with tf.variable_scope('aff'):
 					pia, _  = self.generator(pi, last_dim=3)
-			with tf.device('/device:GPU:1'):
+			# with tf.device('/device:GPU:1'):
 				with tf.variable_scope('lbl'):
 					pil, _  = self.generator(pi, last_dim=1)
 			
@@ -92,12 +92,15 @@ class Model(ModelDesc):
 
 
 		with tf.name_scope('aff_loss'):		
-			aff_ia = tf.subtract(binary_cross_entropy(tf_2imag(pa, maxVal=1.0), tf_2imag(pia, maxVal=1.0)), 
-					    		 dice_coe(tf_2imag(pa, maxVal=1.0), tf_2imag(pia, maxVal=1.0), axis=[0,1,2,3], loss_type='jaccard'))
-			aff_ila = tf.subtract(binary_cross_entropy(tf_2imag(pa, maxVal=1.0), tf_2imag(pila, maxVal=1.0)), 
-					    		 dice_coe(tf_2imag(pa, maxVal=1.0), tf_2imag(pila, maxVal=1.0), axis=[0,1,2,3], loss_type='jaccard'))
-			aff_ia_ = tf.subtract(binary_cross_entropy(tf_2imag(pa, maxVal=1.0), tf_2imag(pia_, maxVal=1.0)), 
-					    		 dice_coe(tf_2imag(pa, maxVal=1.0), tf_2imag(pia_, maxVal=1.0), axis=[0,1,2,3], loss_type='jaccard'))
+			aff_ia  = tf.identity(tf.subtract(binary_cross_entropy(tf_2imag(pa, maxVal=1.0), tf_2imag(pia, maxVal=1.0)), 
+					    		 			  dice_coe(tf_2imag(pa, maxVal=1.0), tf_2imag(pia, maxVal=1.0), axis=[0,1,2,3], loss_type='jaccard')),
+								 name='aff_ia')
+			aff_ila = tf.identity(tf.subtract(binary_cross_entropy(tf_2imag(pa, maxVal=1.0), tf_2imag(pila, maxVal=1.0)), 
+					    		 			  dice_coe(tf_2imag(pa, maxVal=1.0), tf_2imag(pila, maxVal=1.0), axis=[0,1,2,3], loss_type='jaccard')),
+								 name='aff_ila')			
+			aff_ia_ = tf.identity(tf.subtract(binary_cross_entropy(tf_2imag(pa, maxVal=1.0), tf_2imag(pia_, maxVal=1.0)), 
+					    		 			  dice_coe(tf_2imag(pa, maxVal=1.0), tf_2imag(pia_, maxVal=1.0), axis=[0,1,2,3], loss_type='jaccard')),
+								 name='aff_ia_')
 			losses.append(aff_ia)
 			losses.append(aff_ila)
 			losses.append(aff_ia_)
@@ -116,9 +119,9 @@ class Model(ModelDesc):
 			add_moving_summary(abs_ila)	
 			add_moving_summary(abs_ia_)	
 
-			abs_il  = tf.reduce_mean(tf.abs(pa - pil), name='abs_il')
-			abs_ial = tf.reduce_mean(tf.abs(pa - pial), name='abs_ial')
-			abs_il_ = tf.reduce_mean(tf.abs(pa - pil_), name='abs_il_')
+			abs_il  = tf.reduce_mean(tf.abs(pl - pil), name='abs_il')
+			abs_ial = tf.reduce_mean(tf.abs(pl - pial), name='abs_ial')
+			abs_il_ = tf.reduce_mean(tf.abs(pl - pil_), name='abs_il_')
 			losses.append(abs_il)
 			losses.append(abs_ial)
 			losses.append(abs_il_)
@@ -134,15 +137,16 @@ class Model(ModelDesc):
 			add_moving_summary(res_ila)	
 			
 
-		self.cost = tf.reduce_sum(losses)
+		self.cost = tf.reduce_sum(losses, name='self.cost')
+		add_moving_summary(self.cost)
 		# Visualization
 		# Segmentation
 		pz = tf.zeros_like(pi)
-		viz = tf.concat([tf.concat([pi, pl, pa [:,:,:,0:1], pa [:,:,:,1:2], pa [:,:,:,2:3]], 2), 
+		viz = tf.concat([tf.concat([pi, pl,   pa [:,:,:,0:1], pa [:,:,:,1:2], pa [:,:,:,2:3]], 2), 
 						 tf.concat([pz, pial, pia[:,:,:,0:1], pia[:,:,:,1:2], pia[:,:,:,2:3]], 2), 
-						 tf.concat([pz, pil, pila[:,:,:,0:1], pila[:,:,:,1:2], pila[:,:,:,2:3]], 2), 
-						 tf.concat([pz, pz, pia_[:,:,:,0:1], pia_[:,:,:,1:2], pia_[:,:,:,2:3]], 2), 
-						 tf.concat([pi, pl, pil, pial, pil_], 2), 
+						 tf.concat([pz, pil,  pila[:,:,:,0:1], pila[:,:,:,1:2], pila[:,:,:,2:3]], 2), 
+						 tf.concat([pz, pil_, pia_[:,:,:,0:1], pia_[:,:,:,1:2], pia_[:,:,:,2:3]], 2), 
+						 tf.concat([pi, pl,   pil, pial, pil_], 2), 
 						 ], 1)
 
 		viz = tf_2imag(viz)
@@ -226,7 +230,6 @@ if __name__ == '__main__':
 	train_ds = get_data(args.data, isTrain=True, isValid=False, isTest=False)
 	valid_ds = get_data(args.data, isTrain=False, isValid=True, isTest=False)
 	# test_ds  = get_data(args.data, isTrain=False, isValid=False, isTest=True)
-
 
 
 	train_ds  = PrefetchDataZMQ(train_ds, 16)

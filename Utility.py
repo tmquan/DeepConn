@@ -46,10 +46,10 @@ NB_FILTERS = 32	  # channel size
 
 DIMX  = 320
 DIMY  = 320
-DIMZ  = 20
+DIMZ  = 16
 DIMC  = 1
 
-MAX_LABEL = 200
+MAX_LABEL = 128
 ###############################################################################
 def seg_to_aff_op(seg, nhood=tf.constant(malis.mknhood3d(1)), name=None):
 	# Squeeze the segmentation to 3D
