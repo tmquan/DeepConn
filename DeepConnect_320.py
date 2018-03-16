@@ -24,34 +24,27 @@ class Model(ModelDesc):
 
 	def _build_graph(self, inputs):
 		G = tf.get_default_graph() # For round
-		tf.local_variables_initializer()
-		tf.global_variables_initializer()
+		# tf.local_variables_initializer()
+		# tf.global_variables_initializer()
 		pi, pm, pl = inputs
 
 		pi = tf_2tanh(pi)
 		pm = tf_2tanh(pm)
 		pl = tf_2tanh(pl)
 
-		# Calculate affinity
-		pa = tf_2tanh(seg_to_aff_op(toMaxLabels(pl, factor=MAX_LABEL)),  maxVal=1.0) # Calculate the affinity 	#0, 1
 
 		with tf.variable_scope('gen'):
-			# with tf.device('/device:GPU:0'):
+			with tf.device('/device:GPU:0'):
 				with tf.variable_scope('aff'):
 					pia, _  = self.generator(pi, last_dim=3)
-			# with tf.device('/device:GPU:1'):
+			with tf.device('/device:GPU:1'):
 				with tf.variable_scope('lbl'):
 					pil, _  = self.generator(pi, last_dim=1)
 			
 		# 
-		with G.gradient_override_map({"round": "Identity"}):
-			with tf.variable_scope('fix'):
-				# Round
-				pil  = toMaxLabels(pil, factor=MAX_LABEL) #0 MAX
-				pil  = tf.round(pil)
-				pil  = toRangeTanh(pil, factor=MAX_LABEL) # -1 1
-				
-				pa   = tf_2tanh(seg_to_aff_op(toMaxLabels(pl, factor=MAX_LABEL),   name='pa'), maxVal=1.0) # Calculate the affinity 	#0, 1
+		with G.gradient_override_map({"Round": "Identity", "SegToAff": "Identity", "AffToSeg": "Identity"}):
+			# with varreplace.freeze_variables():				
+				pa   = tf_2tanh(seg_to_aff_op(toMaxLabels(pl,  factor=MAX_LABEL),  name='pa'),   maxVal=1.0) # Calculate the affinity 	#0, 1
 				pila = tf_2tanh(seg_to_aff_op(toMaxLabels(pil, factor=MAX_LABEL),  name='pila'), maxVal=1.0) # Calculate the affinity 	#0, 1
 
 				pial = toRangeTanh(aff_to_seg_op(tf_2imag(pia, maxVal=1.0), name='pial'), factor=MAX_LABEL) # Calculate the segmentation
@@ -70,19 +63,19 @@ class Model(ModelDesc):
 		# Calculate the loss
 		losses = []		
 		with tf.name_scope('rand_loss'):
-				rand_il   = tf.reduce_mean(tf_rand_score(toMaxLabels(pl,   factor=MAX_LABEL), 
-														 toMaxLabels(pil , factor=MAX_LABEL)), name='rand_il')
-				rand_ial  = tf.reduce_mean(tf_rand_score(toMaxLabels(pl,   factor=MAX_LABEL), 
-														 toMaxLabels(pial, factor=MAX_LABEL)), name='rand_ial')
-				rand_il_  = tf.reduce_mean(tf_rand_score(toMaxLabels(pl,   factor=MAX_LABEL), 
-														 toMaxLabels(pil_, factor=MAX_LABEL)), name='rand_il_')
+			rand_il   = tf.reduce_mean(tf_rand_score(toMaxLabels(pl,   factor=MAX_LABEL), 
+													 toMaxLabels(pil , factor=MAX_LABEL)), name='rand_il')
+			rand_ial  = tf.reduce_mean(tf_rand_score(toMaxLabels(pl,   factor=MAX_LABEL), 
+													 toMaxLabels(pial, factor=MAX_LABEL)), name='rand_ial')
+			rand_il_  = tf.reduce_mean(tf_rand_score(toMaxLabels(pl,   factor=MAX_LABEL), 
+													 toMaxLabels(pil_, factor=MAX_LABEL)), name='rand_il_')
 
-				losses.append(rand_il)
-				losses.append(rand_ial)
-				losses.append(rand_il_)
-				add_moving_summary(rand_il)
-				add_moving_summary(rand_ial)
-				add_moving_summary(rand_il_)
+			losses.append(rand_il)
+			losses.append(rand_ial)
+			losses.append(rand_il_)
+			add_moving_summary(rand_il)
+			add_moving_summary(rand_ial)
+			add_moving_summary(rand_il_)
 
 
 		with tf.name_scope('aff_loss'):		
@@ -269,6 +262,6 @@ if __name__ == '__main__':
 		# Train the model
 		SyncMultiGPUTrainer(config).train()
 		# trainer = SyncMultiGPUTrainerReplicated(max(get_nr_gpu(), 1))
-  #       launch_train_with_config(config, trainer)
+		# launch_train_with_config(config, trainer)
 
 

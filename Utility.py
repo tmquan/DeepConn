@@ -51,7 +51,7 @@ DIMC  = 1
 
 MAX_LABEL = 100
 ###############################################################################
-def seg_to_aff_op(seg, nhood=tf.constant(malis.mknhood3d(1)), name=None):
+def seg_to_aff_op(seg, nhood=tf.constant(malis.mknhood3d(1)), name='SegToAff'):
 	# Squeeze the segmentation to 3D
 	seg = tf.squeeze(seg)
 	# Define the numpy function to transform segmentation to affinity graph
@@ -65,7 +65,7 @@ def seg_to_aff_op(seg, nhood=tf.constant(malis.mknhood3d(1)), name=None):
 	# print ret.get_shape().as_list()
 	return ret
 ###############################################################################
-def aff_to_seg_op(aff, nhood=tf.constant(malis.mknhood3d(1)), threshold=tf.constant(np.array([0.5])), name=None):
+def aff_to_seg_op(aff, nhood=tf.constant(malis.mknhood3d(1)), threshold=tf.constant(np.array([0.5])), name='AffToSeg'):
 	# Define the numpy function to transform affinity to segmentation
 	def np_func (aff, nhood, threshold):
 		aff = np.transpose(aff, [3, 0, 1, 2]) # zyx3 to 3zyx
@@ -343,7 +343,7 @@ class ImageDataFlow(RNGDataFlow):
 			label_p = np.expand_dims(label_p, axis=-1)
 
 			yield [image_p.astype(np.float32), 
-				   membr_p.astype(np.float32), 
+				   image_p.astype(np.float32), 
 				   label_p.astype(np.float32), 
 				   ] 
 

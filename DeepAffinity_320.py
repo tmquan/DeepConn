@@ -24,22 +24,20 @@ class Model(ModelDesc):
 
 	def _build_graph(self, inputs):
 		G = tf.get_default_graph() # For round
-		tf.local_variables_initializer()
-		tf.global_variables_initializer()
+		# tf.local_variables_initializer()
+		# tf.global_variables_initializer()
 		pi, pm, pl = inputs
 
 		pi = tf_2tanh(pi)
 		pm = tf_2tanh(pm)
 		pl = tf_2tanh(pl)
 
-		# Calculate affinity
-		pa = tf_2tanh(seg_to_aff_op(toMaxLabels(pl, factor=MAX_LABEL)),  maxVal=1.0) # Calculate the affinity 	#0, 1
-
 		with tf.variable_scope('gen'):
-			pia, _  = self.generator(pi, last_dim=3)
+			with tf.device('/device:GPU:0'):
+				pia, _  = self.generator(pi, last_dim=3)
 
-		with G.gradient_override_map({"round": "Identity"}):
-			with tf.variable_scope('fix'):
+		with G.gradient_override_map({"Round": "Identity", "SegToAff": "Identity", "AffToSeg": "Identity"}):
+			# with varreplace.freeze_variables():
 				# Round
 				# pil  = toMaxLabels(pil, factor=MAX_LABEL) #0 MAX
 				# pil  = tf.round(pil)
@@ -209,4 +207,4 @@ if __name__ == '__main__':
 		# Train the model
 		SyncMultiGPUTrainer(config).train()
 		# trainer = SyncMultiGPUTrainerReplicated(max(get_nr_gpu(), 1))
-        # launch_train_with_config(config, trainer)
+		# launch_train_with_config(config, trainer)
