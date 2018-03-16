@@ -49,7 +49,7 @@ DIMY  = 320
 DIMZ  = 16
 DIMC  = 1
 
-MAX_LABEL = 128
+MAX_LABEL = 100
 ###############################################################################
 def seg_to_aff_op(seg, nhood=tf.constant(malis.mknhood3d(1)), name=None):
 	# Squeeze the segmentation to 3D

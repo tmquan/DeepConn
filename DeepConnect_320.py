@@ -274,3 +274,7 @@ if __name__ == '__main__':
 	
 		# Train the model
 		SyncMultiGPUTrainer(config).train()
+		# trainer = SyncMultiGPUTrainerReplicated(max(get_nr_gpu(), 1))
+  #       launch_train_with_config(config, trainer)
+
+
