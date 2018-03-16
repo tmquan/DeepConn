@@ -24,8 +24,7 @@ class Model(ModelDesc):
 
 	def _build_graph(self, inputs):
 		G = tf.get_default_graph() # For round
-		# tf.local_variables_initializer()
-		# tf.global_variables_initializer()
+
 		pi, pm, pl = inputs
 
 		pi = tf_2tanh(pi)
@@ -34,24 +33,20 @@ class Model(ModelDesc):
 
 
 		with tf.variable_scope('gen'):
-			with tf.device('/device:GPU:0'):
-				with tf.variable_scope('aff'):
-					pia, _  = self.generator(pi, last_dim=3)
-			with tf.device('/device:GPU:1'):
-				with tf.variable_scope('lbl'):
-					pil, _  = self.generator(pi, last_dim=1)
+			with tf.variable_scope('aff'):
+				pia, _  = self.generator(pi, last_dim=3)
+			with tf.variable_scope('lbl'):
+				pil, _  = self.generator(pi, last_dim=1)
 			
 		# 
 		with G.gradient_override_map({"Round": "Identity", "SegToAff": "Identity", "AffToSeg": "Identity"}):
-			# with varreplace.freeze_variables():				
-				pa   = tf_2tanh(seg_to_aff_op(toMaxLabels(pl,  factor=MAX_LABEL),  name='pa'),   maxVal=1.0) # Calculate the affinity 	#0, 1
-				pila = tf_2tanh(seg_to_aff_op(toMaxLabels(pil, factor=MAX_LABEL),  name='pila'), maxVal=1.0) # Calculate the affinity 	#0, 1
+			pa   = tf_2tanh(seg_to_aff_op(toMaxLabels(pl,  factor=MAX_LABEL),  name='pa'),   maxVal=1.0) # Calculate the affinity 	#0, 1
+			pila = tf_2tanh(seg_to_aff_op(toMaxLabels(pil, factor=MAX_LABEL),  name='pila'), maxVal=1.0) # Calculate the affinity 	#0, 1
 
-				pial = toRangeTanh(aff_to_seg_op(tf_2imag(pia, maxVal=1.0), name='pial'), factor=MAX_LABEL) # Calculate the segmentation
-				# pial = toRangeTanh(pial, factor=MAX_LABEL) # -1, 1
+			pial = toRangeTanh(aff_to_seg_op(tf_2imag(pia, maxVal=1.0), name='pial'), factor=MAX_LABEL) # Calculate the segmentation
 
-				pil_ = (pial + pil) / 2.0 # Return the result
-				pia_ = (pila + pia) / 2.0	
+			pil_ = (pial + pil) / 2.0 # Return the result
+			pia_ = (pila + pia) / 2.0	
 
 		pil = tf.identity(pil, name='pil')
 		pia = tf.identity(pia, name='pia')
@@ -185,21 +180,6 @@ def get_data(dataDir, isTrain=False, isValid=False, isTest=False):
 						  isTest =isTest)
 	dset.reset_state()
 	return dset
-###############################################################################
-class ClipCallback(Callback):
-	def _setup_graph(self):
-		vars = tf.trainable_variables()
-		ops = []
-		for v in vars:
-			n = v.op.name
-			if not n.startswith('discrim/'):
-				continue
-			logger.info("Clip {}".format(n))
-			ops.append(tf.assign(v, tf.clip_by_value(v, -0.01, 0.01)))
-		self._op = tf.group(*ops, name='clip')
-
-	def _trigger_step(self):
-		self._op.run()
 ###############################################################################
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()

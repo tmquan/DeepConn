@@ -32,38 +32,38 @@ class Model(ModelDesc):
 		pl = tf_2tanh(pl)
 
 		with tf.variable_scope('gen'):
-			with tf.variable_scope('aff'):
-				pia, _  = self.generator(pi, last_dim=3)
+			with tf.variable_scope('lbl'):
+				pil, _  = self.generator(pi, last_dim=1)
 
-		with G.gradient_override_map({"Round": "Identity", "SegToAff": "Identity", "AffToSeg": "Identity"}):			
+		with G.gradient_override_map({"Round": "Identity", "SegToAff": "Identity", "AffToSeg": "Identity"}):
 			pa   = tf_2tanh(seg_to_aff_op(toMaxLabels(pl, factor=MAX_LABEL),   name='pa'), maxVal=1.0) # Calculate the affinity 	#0, 1
-			pial = toRangeTanh(aff_to_seg_op(tf_2imag(pia, maxVal=1.0), name='pial'), factor=MAX_LABEL) 
+			pila = tf_2tanh(seg_to_aff_op(toMaxLabels(pil, factor=MAX_LABEL),   name='pila'), maxVal=1.0) # Calculate the affinity 	#0, 1
 
-		pia  = tf.identity(pia, name='pia')
-		pial = tf.identity(pial, name='pial')
+		pil  = tf.identity(pil, name='pil')
+		pila = tf.identity(pila, name='pila')
 		# Calculate the loss
 		losses = []
 		with tf.name_scope('rand_loss'):
-			rand_ial  = tf.reduce_mean(tf_rand_score(toMaxLabels(pl,   factor=MAX_LABEL), 
-													 toMaxLabels(pial, factor=MAX_LABEL)), name='rand_ial')
-			losses.append(rand_ial)
-			add_moving_summary(rand_ial)
+			rand_il  = tf.reduce_mean(tf_rand_score(toMaxLabels(pl,   factor=MAX_LABEL), 
+													 toMaxLabels(pil, factor=MAX_LABEL)), name='rand_il')
+			losses.append(rand_il)
+			add_moving_summary(rand_il)
 
 		with tf.name_scope('aff_loss'):		
-			aff_ia  = tf.identity(tf.subtract(binary_cross_entropy(tf_2imag(pa, maxVal=1.0), tf_2imag(pia, maxVal=1.0)), 
-					    		 			  dice_coe(tf_2imag(pa, maxVal=1.0), tf_2imag(pia, maxVal=1.0), axis=[0,1,2,3], loss_type='jaccard')),
-								 name='aff_ia')
-			losses.append(3e-3*aff_ia)
-			add_moving_summary(aff_ia)
+			aff_ila  = tf.identity(tf.subtract(binary_cross_entropy(tf_2imag(pa, maxVal=1.0), tf_2imag(pila, maxVal=1.0)), 
+					    		 			  dice_coe(tf_2imag(pa, maxVal=1.0), tf_2imag(pila, maxVal=1.0), axis=[0,1,2,3], loss_type='jaccard')),
+								 name='aff_ila')
+			losses.append(3e-3*aff_ila)
+			add_moving_summary(aff_ila)
 
 		with tf.name_scope('abs_loss'):		
-			abs_ia = tf.reduce_mean(tf.abs(pa - pia), name='abs_ia')
-			losses.append(abs_ia)
-			add_moving_summary(abs_ia)	
+			abs_ila = tf.reduce_mean(tf.abs(pa - pila), name='abs_ila')
+			losses.append(abs_ila)
+			add_moving_summary(abs_ila)	
 
-			abs_ial = tf.reduce_mean(tf.abs(pl - pial), name='abs_ial')
-			losses.append(abs_ial)
-			add_moving_summary(abs_ial)	
+			abs_il = tf.reduce_mean(tf.abs(pl - pil), name='abs_il')
+			losses.append(abs_il)
+			add_moving_summary(abs_il)	
 
 		self.cost = tf.reduce_sum(losses, name='self.cost')
 		add_moving_summary(self.cost)	
@@ -71,7 +71,7 @@ class Model(ModelDesc):
 		# Segmentation
 		pz = tf.zeros_like(pi)
 		viz = tf.concat([tf.concat([pi, pl,   pa [:,:,:,0:1], pa [:,:,:,1:2], pa [:,:,:,2:3]], 2), 
-						 tf.concat([pz, pial, pia[:,:,:,0:1], pia[:,:,:,1:2], pia[:,:,:,2:3]], 2), 
+						 tf.concat([pz, pil, pila[:,:,:,0:1], pila[:,:,:,1:2], pila[:,:,:,2:3]], 2), 
 						 ], 1)
 
 		viz = tf_2imag(viz)
