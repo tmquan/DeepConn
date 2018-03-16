@@ -276,53 +276,11 @@ class ImageDataFlow(RNGDataFlow):
 			rand_label = self.rng.randint(0, len(images))
 
 
-			# image_u = skimage.io.imread(images[rand_image])
-			# membr_u = skimage.io.imread(labels[rand_membr])
-			# label_u = skimage.io.imread(labels[rand_label])
-			image_u = image_p.copy() #skimage.io.imread(images[rand_index])
-			membr_u = membr_p.copy() #skimage.io.imread(labels[rand_index])
-			label_u = label_p.copy() #skimage.io.imread(labels[rand_index])
-
 
 			# Cut 1 or 3 slices along z, by define DIMZ, the same for paired, randomly for unpaired
-			dimz, dimy, dimx = image_u.shape
+			dimz, dimy, dimx = image_p.shape
 
 			seed = 		np.array(time.time()).astype(np.int64) #self.rng.randint(0, 20152015)
-			# seed_image = time.time() #self.rng.randint(0, 2015)
-			# seed_membr = time.time() #self.rng.randint(0, 2015)
-			# seed_label = time.time() #self.rng.randint(0, 2015)
-			# np.random.seed(seed)
-
-			# # The same for pair
-			# randz = self.rng.randint(0, dimz-DIMZ+1)
-			# randy = self.rng.randint(0, dimy-DIMY+1)
-			# randx = self.rng.randint(0, dimx-DIMX+1)
-			# headx = self.rng.randint(0, 2)
-			# heady = self.rng.randint(0, 2)
-			# # image_p = image_p[randz:randz+DIMZ,randy:randy+DIMY,randx:randx+DIMX]
-			# # membr_p = membr_p[randz:randz+DIMZ,randy:randy+DIMY,randx:randx+DIMX]
-			# # label_p = label_p[randz:randz+DIMZ,randy:randy+DIMY,randx:randx+DIMX]
-			# image_p = image_p[randz:randz+DIMZ,heady::2,headx::2]
-			# membr_p = membr_p[randz:randz+DIMZ,heady::2,headx::2]
-			# label_p = label_p[randz:randz+DIMZ,heady::2,headx::2]
-
-			# # Randomly for unpaired for pair
-			# randz = self.rng.randint(0, dimz-DIMZ+1)
-			# randy = self.rng.randint(0, dimy-DIMY+1)
-			# randx = self.rng.randint(0, dimx-DIMX+1)
-			# # image_u = image_u[randz:randz+DIMZ,randy:randy+DIMY,randx:randx+DIMX]
-			# image_u = image_u[randz:randz+DIMZ,heady::2,headx::2]
-			# randz = self.rng.randint(0, dimz-DIMZ+1)
-			# randy = self.rng.randint(0, dimy-DIMY+1)
-			# randx = self.rng.randint(0, dimx-DIMX+1)
-			# # membr_u = membr_u[randz:randz+DIMZ,randy:randy+DIMY,randx:randx+DIMX]
-			# membr_u = membr_u[randz:randz+DIMZ,heady::2,headx::2]
-			# randz = self.rng.randint(0, dimz-DIMZ+1)
-			# randy = self.rng.randint(0, dimy-DIMY+1)
-			# randx = self.rng.randint(0, dimx-DIMX+1)
-			# # label_u = label_u[randz:randz+DIMZ,randy:randy+DIMY,randx:randx+DIMX]
-			# label_u = label_u[randz:randz+DIMZ,heady::2,headx::2]
-
 
 
 			
@@ -348,22 +306,6 @@ class ImageDataFlow(RNGDataFlow):
 				label_p = self.random_square_rotate(label_p, seed=seed)   
 				label_p = self.random_elastic(label_p, seed=seed)
 				
-				# # Augment the unpair image for different seed seed
-				# image_u = self.random_flip(image_u, seed=seed_image)        
-				# image_u = self.random_reverse(image_u, seed=seed_image)
-				# image_u = self.random_square_rotate(image_u, seed=seed_image)           
-				# image_u = self.random_elastic(image_u, seed=seed_image)
-
-				# membr_u = self.random_flip(membr_u, seed=seed_membr)        
-				# membr_u = self.random_reverse(membr_u, seed=seed_membr)
-				# membr_u = self.random_square_rotate(membr_u, seed=seed_membr)   
-				# membr_u = self.random_elastic(membr_u, seed=seed_membr)
-
-				# label_u = self.random_flip(label_u, seed=seed_label)        
-				# label_u = self.random_reverse(label_u, seed=seed_label)
-				# label_u = self.random_square_rotate(label_u, seed=seed_label)   
-				# label_u = self.random_elastic(label_u, seed=seed_label)
-
 			# The same for pair
 			randz = self.rng.randint(0, dimz-DIMZ+1)
 			randy = self.rng.randint(0, dimy-DIMY+1)
@@ -371,22 +313,6 @@ class ImageDataFlow(RNGDataFlow):
 			image_p = image_p[randz:randz+DIMZ,randy:randy+DIMY,randx:randx+DIMX]
 			membr_p = membr_p[randz:randz+DIMZ,randy:randy+DIMY,randx:randx+DIMX]
 			label_p = label_p[randz:randz+DIMZ,randy:randy+DIMY,randx:randx+DIMX]
-
-			# Randomly for unpaired for pair
-			randz = self.rng.randint(0, dimz-DIMZ+1)
-			randy = self.rng.randint(0, dimy-DIMY+1)
-			randx = self.rng.randint(0, dimx-DIMX+1)
-			image_u = image_u[randz:randz+DIMZ,randy:randy+DIMY,randx:randx+DIMX]
-
-			randz = self.rng.randint(0, dimz-DIMZ+1)
-			randy = self.rng.randint(0, dimy-DIMY+1)
-			randx = self.rng.randint(0, dimx-DIMX+1)
-			membr_u = membr_u[randz:randz+DIMZ,randy:randy+DIMY,randx:randx+DIMX]
-
-			randz = self.rng.randint(0, dimz-DIMZ+1)
-			randy = self.rng.randint(0, dimy-DIMY+1)
-			randx = self.rng.randint(0, dimx-DIMX+1)
-			label_u = label_u[randz:randz+DIMZ,randy:randy+DIMY,randx:randx+DIMX]
 
 
 
@@ -400,42 +326,25 @@ class ImageDataFlow(RNGDataFlow):
 				return membr
 
 			membr_p = membrane(membr_p.copy())
-			membr_u = membrane(membr_u.copy())
-
-			# label_p = label_p[label_p>0] + 1.0
-			# label_u = label_u[label_u>0] + 1.0
 
 			# Calculate linear label
 			label_p, nb_labels_p = skimage.measure.label(label_p.copy(), return_num=True)
-			label_u, nb_labels_u = skimage.measure.label(label_u.copy(), return_num=True)
 
 			label_p = label_p.astype(np.float32)
-			label_u = label_u.astype(np.float32)
 
 			label_p = label_p / MAX_LABEL
-			label_u = label_u / MAX_LABEL
-
 			label_p[membr_p==0] = -1.0
-			label_u[membr_u==0] = -1.0
 
 			label_p = np_2imag(label_p, maxVal=255.0)
-			label_u = np_2imag(label_u, maxVal=255.0)
 
 			#Expand dim to make single channel
 			image_p = np.expand_dims(image_p, axis=-1)
 			membr_p = np.expand_dims(membr_p, axis=-1)
 			label_p = np.expand_dims(label_p, axis=-1)
 
-			image_u = np.expand_dims(image_u, axis=-1)
-			membr_u = np.expand_dims(membr_u, axis=-1)
-			label_u = np.expand_dims(label_u, axis=-1)
-
 			yield [image_p.astype(np.float32), 
 				   membr_p.astype(np.float32), 
 				   label_p.astype(np.float32), 
-				   image_u.astype(np.float32), 
-				   membr_u.astype(np.float32), 
-				   label_u.astype(np.float32),
 				   ] 
 
 	def random_flip(self, image, seed=None):

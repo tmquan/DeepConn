@@ -20,23 +20,17 @@ class Model(ModelDesc):
 			InputDesc(tf.float32, (DIMZ, DIMY, DIMX, 1), 'image_p'),
 			InputDesc(tf.float32, (DIMZ, DIMY, DIMX, 1), 'membr_p'),
 			InputDesc(tf.float32, (DIMZ, DIMY, DIMX, 1), 'label_p'),
-			InputDesc(tf.float32, (DIMZ, DIMY, DIMX, 1), 'image_u'),
-			InputDesc(tf.float32, (DIMZ, DIMY, DIMX, 1), 'membr_u'),
-			InputDesc(tf.float32, (DIMZ, DIMY, DIMX, 1), 'label_u'),
 			]
 
 	def _build_graph(self, inputs):
 		G = tf.get_default_graph() # For round
 		tf.local_variables_initializer()
 		tf.global_variables_initializer()
-		pi, pm, pl, ui, um, ul = inputs
+		pi, pm, pl = inputs
 
 		pi = tf_2tanh(pi)
 		pm = tf_2tanh(pm)
 		pl = tf_2tanh(pl)
-		ui = tf_2tanh(ui)
-		um = tf_2tanh(um)
-		ul = tf_2tanh(ul)
 
 		# Calculate affinity
 		pa = tf_2tanh(seg_to_aff_op(toMaxLabels(pl, factor=MAX_LABEL)),  maxVal=1.0) # Calculate the affinity 	#0, 1
@@ -68,11 +62,11 @@ class Model(ModelDesc):
 			aff_ia  = tf.identity(tf.subtract(binary_cross_entropy(tf_2imag(pa, maxVal=1.0), tf_2imag(pia, maxVal=1.0)), 
 					    		 			  dice_coe(tf_2imag(pa, maxVal=1.0), tf_2imag(pia, maxVal=1.0), axis=[0,1,2,3], loss_type='jaccard')),
 								 name='aff_ia')
-			losses.append(aff_ia)
+			losses.append(3e-3*aff_ia)
 			add_moving_summary(aff_ia)
 
 		with tf.name_scope('abs_loss'):		
-			abs_ia = tf.reduce_mean(tf.abs(pa - pia), name='abs_loss')
+			abs_ia = tf.reduce_mean(tf.abs(pa - pia), name='abs_ia')
 			losses.append(abs_ia)
 			add_moving_summary(abs_ia)	
 
@@ -102,7 +96,7 @@ class Model(ModelDesc):
 class VisualizeRunner(Callback):
 	def _setup_graph(self):
 		self.pred = self.trainer.get_predictor(
-			['image_p', 'membr_p', 'label_p', 'image_u', 'membr_u', 'label_u'], ['viz'])
+			['image_p', 'membr_p', 'label_p'], ['viz'])
 
 	def _before_train(self):
 		global args
@@ -172,7 +166,7 @@ if __name__ == '__main__':
 	# test_ds  = get_data(args.data, isTrain=False, isValid=False, isTest=True)
 
 
-	train_ds  = PrefetchDataZMQ(train_ds, 16)
+	train_ds  = PrefetchDataZMQ(train_ds, 24)
 	train_ds  = PrintData(train_ds)
 	# train_ds  = QueueInput(train_ds)
 	model 	  = Model()
@@ -213,6 +207,6 @@ if __name__ == '__main__':
 			)
 	
 		# Train the model
-		SyncMultiGPUTrainerReplicated(config).train()
+		SyncMultiGPUTrainer(config).train()
 		# trainer = SyncMultiGPUTrainerReplicated(max(get_nr_gpu(), 1))
         # launch_train_with_config(config, trainer)
