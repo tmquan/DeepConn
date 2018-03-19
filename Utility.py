@@ -105,6 +105,117 @@ def tf_rand_score (x1, x2):
 	ret = tf_func[0]
 	ret = tf.cast(ret, tf.float32)
 	return ret
+
+def regDLF(y_true, y_pred, alpha=1, beta=1, gamma=0.01, delta_v=0.5, delta_d=1.5, name='loss_discrim'):
+	def tf_norm(inputs, axis=1, epsilon=1e-7,  name='safe_norm'):
+		squared_norm 	= tf.reduce_sum(tf.square(inputs), axis=axis, keep_dims=True)
+		safe_norm 		= tf.sqrt(squared_norm+epsilon)
+		return tf.identity(safe_norm, name=name)
+	###
+
+	shape = y_true.get_shape().as_list()
+	dimz, dimy, dimx = shape[0], shape[1], shape[2]
+	lins = tf.linspace(0.0, dimz*dimy*DIMX, dimz*dimy*dimx)
+	lins = tf.cast(lins, tf.int32)
+	# lins = lins / tf.reduce_max(lins) * 255
+	# lins = tf_2tanh(lins)
+	# lins = tf.reshape(lins, tf.shape(y_true), name='lins_3d')
+	# print lins
+	lins_z = tf.div(lins,(dimy*dimx))
+	lins_y = tf.div(tf.mod(lins,(dimy*dimx)), dimy)
+	lins_x = tf.mod(tf.mod(lins,(dimy*dimx)), dimy)
+
+	lins   = tf.cast(lins  , tf.float32)
+	lins_z = tf.cast(lins_z, tf.float32)
+	lins_y = tf.cast(lins_y, tf.float32)
+	lins_x = tf.cast(lins_x, tf.float32)
+
+	lins   = lins 	/ tf.reduce_max(lins) * 255
+	lins_z = lins_z / tf.reduce_max(lins_z) * 255
+	lins_y = lins_y / tf.reduce_max(lins_y) * 255
+	lins_x = lins_x / tf.reduce_max(lins_x) * 255
+
+	lins   = tf_2tanh(lins)
+	lins_z = tf_2tanh(lins_z)
+	lins_y = tf_2tanh(lins_y)
+	lins_x = tf_2tanh(lins_x)
+
+	lins   = tf.reshape(lins,   tf.shape(y_true), name='lins')
+	lins_z = tf.reshape(lins_z, tf.shape(y_true), name='lins_z')
+	lins_y = tf.reshape(lins_y, tf.shape(y_true), name='lins_y')
+	lins_x = tf.reshape(lins_x, tf.shape(y_true), name='lins_x')
+
+	y_true = tf.reshape(y_true, [dimz*dimy*dimx])
+	y_pred = tf.concat([y_pred, lins, lins_z, lins_y, lins_x], axis=-1)
+
+	nDim = tf.shape(y_pred)[-1]
+	X = tf.reshape(y_pred, [dimz*dimy*dimx, nDim])
+	uniqueLabels, uniqueInd = tf.unique(y_true)
+
+	numUnique = tf.size(uniqueLabels) # Get the number of connected component
+
+	Sigma = tf.unsorted_segment_sum(X, uniqueInd, numUnique)
+	# ones_Sigma = tf.ones((tf.shape(X)[0], 1))
+	ones_Sigma = tf.ones_like(X)
+	ones_Sigma = tf.unsorted_segment_sum(ones_Sigma, uniqueInd, numUnique)
+	mu = tf.divide(Sigma, ones_Sigma)
+
+	Lreg = tf.reduce_mean(tf.norm(mu, axis=1, ord=1))
+
+	T = tf.norm(tf.subtract(tf.gather(mu, uniqueInd), X), axis = 1, ord=1)
+	T = tf.divide(T, Lreg)
+	T = tf.subtract(T, delta_v)
+	T = tf.clip_by_value(T, 0, T)
+	T = tf.square(T)
+
+	ones_Sigma = tf.ones_like(uniqueInd, dtype=tf.float32)
+	ones_Sigma = tf.unsorted_segment_sum(ones_Sigma, uniqueInd, numUnique)
+	clusterSigma = tf.unsorted_segment_sum(T, uniqueInd, numUnique)
+	clusterSigma = tf.divide(clusterSigma, ones_Sigma)
+
+	# Lvar = tf.reduce_mean(clusterSigma, axis=0)
+	Lvar = tf.reduce_mean(clusterSigma)
+
+	mu_interleaved_rep = tf.tile(mu, [numUnique, 1])
+	mu_band_rep = tf.tile(mu, [1, numUnique])
+	mu_band_rep = tf.reshape(mu_band_rep, (numUnique*numUnique, nDim))
+
+	mu_diff = tf.subtract(mu_band_rep, mu_interleaved_rep)
+			# Remove zero vector
+			# intermediate_tensor = reduce_sum(tf.abs(x), 1)
+			# zero_vector = tf.zeros(shape=(1,1), dtype=tf.float32)
+			# bool_mask = tf.not_equal(intermediate_tensor, zero_vector)
+			# omit_zeros = tf.boolean_mask(x, bool_mask)
+	intermediate_tensor = tf.reduce_sum(tf.abs(mu_diff), 1)
+	zero_vector = tf.zeros(shape=(1,1), dtype=tf.float32)
+	bool_mask = tf.not_equal(intermediate_tensor, zero_vector)
+	omit_zeros = tf.boolean_mask(mu_diff, bool_mask)
+	mu_diff = tf.expand_dims(omit_zeros, axis=1)
+	print mu_diff
+	mu_diff = tf.norm(mu_diff, ord=1)
+			# squared_norm = tf.reduce_sum(tf.square(s), axis=axis,keep_dims=True)
+			# safe_norm = tf.sqrt(squared_norm + epsilon)
+			# squared_norm = tf.reduce_sum(tf.square(omit_zeros), axis=-1,keep_dims=True)
+			# safe_norm = tf.sqrt(squared_norm + 1e-6)
+			# mu_diff = safe_norm
+
+	mu_diff = tf.divide(mu_diff, Lreg)
+
+	mu_diff = tf.subtract(2*delta_d, mu_diff)
+	mu_diff = tf.clip_by_value(mu_diff, 0, mu_diff)
+	mu_diff = tf.square(mu_diff)
+
+	numUniqueF = tf.cast(numUnique, tf.float32)
+	Ldist = tf.reduce_mean(mu_diff)        
+
+	# L = alpha * Lvar + beta * Ldist + gamma * Lreg
+	# L = tf.reduce_mean(L, keep_dims=True)
+	L = tf.reduce_sum([alpha*Lvar, beta*Ldist, gamma*Lreg], keep_dims=False)
+	print L
+	print Ldist
+	print Lvar
+	print Lreg
+	return tf.identity(L,  name=name)
 ###############################################################################
 def INReLU(x, name=None):
 	x = InstanceNorm('inorm', x)

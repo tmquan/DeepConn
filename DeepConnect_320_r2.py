@@ -74,6 +74,17 @@ class Model(ModelDesc):
 			add_moving_summary(rand_ial)
 			add_moving_summary(rand_il_)
 
+		with tf.name_scope('reg_loss'):
+			reg_il   = regDLF(toMaxLabels(pl,   factor=MAX_LABEL), toMaxLabels(pil , factor=MAX_LABEL), name='reg_il')
+			reg_ial  = regDLF(toMaxLabels(pl,   factor=MAX_LABEL), toMaxLabels(pial, factor=MAX_LABEL), name='reg_ial')
+			reg_il_  = regDLF(toMaxLabels(pl,   factor=MAX_LABEL), toMaxLabels(pil_, factor=MAX_LABEL), name='reg_il_')
+
+			losses.append(reg_il)
+			losses.append(reg_ial)
+			losses.append(reg_il_)
+			add_moving_summary(reg_il)
+			add_moving_summary(reg_ial)
+			add_moving_summary(reg_il_)
 
 		with tf.name_scope('aff_loss'):		
 			aff_ia  = tf.identity(tf.subtract(binary_cross_entropy(tf_2imag(pa, maxVal=1.0), tf_2imag(pia, maxVal=1.0)), 
@@ -115,8 +126,9 @@ class Model(ModelDesc):
 		with tf.name_scope('res_loss'):		
 			res_ial = tf.reduce_mean(tf.abs(pil - pial), name='res_ial')
 			res_ila = tf.reduce_mean(tf.abs(pia - pila), name='res_ila')
-			losses.append(res_ial)
-			losses.append(res_ila)
+			ALPHA = 1e+1
+			losses.append(ALPHA*res_ial)
+			losses.append(ALPHA*res_ila)
 			add_moving_summary(res_ial)
 			add_moving_summary(res_ila)	
 			
