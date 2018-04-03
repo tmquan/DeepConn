@@ -146,6 +146,7 @@ def regDLF(y_true, y_pred, alpha=1, beta=1, gamma=0.01, delta_v=0.5, delta_d=1.5
 	lins_x = tf.reshape(lins_x, tf.shape(y_true), name='lins_x')
 
 	y_true = tf.reshape(y_true, [dimz*dimy*dimx])
+	#y_pred = tf.cast(y_pred, tf.float32)
 	y_pred = tf.concat([y_pred, lins, lins_z, lins_y, lins_x], axis=-1)
 
 	nDim = tf.shape(y_pred)[-1]
@@ -334,7 +335,13 @@ def arch_discriminator(img):
 		return ret
 
 
-
+def time_seed ():
+    seed = None
+    while seed == None:
+        cur_time = time.time ()
+        seed = int ((cur_time - int (cur_time)) * 1000000)
+    return seed
+input_shape = (DIMZ, DIMY, DIMX)
 ###############################################################################
 class ImageDataFlow(RNGDataFlow):
 	def __init__(self, imageDir, labelDir, size, dtype='float32', isTrain=False, isValid=False, isTest=False):
@@ -345,60 +352,49 @@ class ImageDataFlow(RNGDataFlow):
 		self.isTrain    = isTrain
 		self.isValid    = isValid
 
+		images = natsorted (glob.glob(self.imageDir + '/*.tif'))
+		labels = natsorted (glob.glob(self.labelDir + '/*.tif'))
+		self.images = []
+		self.labels = []
+		self.data_seed = time_seed ()
+		self.data_rand = np.random.RandomState(self.data_seed)
+		self.rng = np.random.RandomState(999)
+		for i in range (len (images)):
+			image = images[i]
+			label = labels[i]
+		self.images.append (skimage.io.imread (image))
+		self.labels.append (skimage.io.imread (label))
+		#self._size = 0
+		#for i in range (len (self.images)):
+		#	self._size += self.images[i].shape[0] * self.images[i].shape[1] * self.images[i].shape[2] \
+		#	        / (input_shape[0] * input_shape[1] * input_shape[2])
+
 	def size(self):
 		return self._size
 
-	def reset_state(self):
-		self.rng = get_rng(self)
-
-	def get_data(self, shuffle=True):
-		#
-		# Read and store into pairs of images and labels
-		#
-		images = glob.glob(self.imageDir + '/*.tif')
-		labels = glob.glob(self.labelDir + '/*.tif')
-
-		if self._size==None:
-			self._size = len(images)
-
-		from natsort import natsorted
-		images = natsorted(images)
-		labels = natsorted(labels)
-
-
-		#
-		# Pick the image over size 
-		#
+	def get_data(self):
 		for k in range(self._size):
 			#
 			# Pick randomly a tuple of training instance
 			#
-			rand_index = self.rng.randint(0, len(images))
-			image_p = skimage.io.imread(images[rand_index])
-			label_p = skimage.io.imread(labels[rand_index])
+			rand_index = self.data_rand.randint(0, len(self.images))
+			image_p = self.images[rand_index].copy ()
+			label_p = self.labels[rand_index].copy ()
 			membr_p = label_p.copy()
-
-
-			#
-			# Pick randomly a tuple of training instance
-			#
-			rand_image = self.rng.randint(0, len(images))
-			rand_membr = self.rng.randint(0, len(images))
-			rand_label = self.rng.randint(0, len(images))
-
-
-
 			# Cut 1 or 3 slices along z, by define DIMZ, the same for paired, randomly for unpaired
 			dimz, dimy, dimx = image_p.shape
+			# The same for pair
+			randz = self.data_rand.randint(0, dimz-DIMZ+1)
+			randy = self.data_rand.randint(0, dimy-DIMY+1)
+			randx = self.data_rand.randint(0, dimx-DIMX+1)
 
-			seed = 		np.array(time.time()).astype(np.int64) #self.rng.randint(0, 20152015)
-
+			image_p = image_p[randz:randz+DIMZ,randy:randy+DIMY,randx:randx+DIMX]
+			membr_p = membr_p[randz:randz+DIMZ,randy:randy+DIMY,randx:randx+DIMX]
+			label_p = label_p[randz:randz+DIMZ,randy:randy+DIMY,randx:randx+DIMX]
 
 			
-			
-			
 
-
+			seed = time_seed () #self.rng.randint(0, 20152015)
 
 			if self.isTrain:
 				# Augment the pair image for same seed
@@ -416,16 +412,6 @@ class ImageDataFlow(RNGDataFlow):
 				label_p = self.random_reverse(label_p, seed=seed)
 				label_p = self.random_square_rotate(label_p, seed=seed)   
 				label_p = self.random_elastic(label_p, seed=seed)
-				
-			# The same for pair
-			randz = self.rng.randint(0, dimz-DIMZ+1)
-			randy = self.rng.randint(0, dimy-DIMY+1)
-			randx = self.rng.randint(0, dimx-DIMX+1)
-			image_p = image_p[randz:randz+DIMZ,randy:randy+DIMY,randx:randx+DIMX]
-			membr_p = membr_p[randz:randz+DIMZ,randy:randy+DIMY,randx:randx+DIMX]
-			label_p = label_p[randz:randz+DIMZ,randy:randy+DIMY,randx:randx+DIMX]
-
-
 
 			# Calculate membrane
 			def membrane(label):
@@ -454,7 +440,7 @@ class ImageDataFlow(RNGDataFlow):
 			label_p = np.expand_dims(label_p, axis=-1)
 
 			yield [image_p.astype(np.float32), 
-				   image_p.astype(np.float32), 
+				   membr_p.astype(np.float32), 
 				   label_p.astype(np.float32), 
 				   ] 
 
