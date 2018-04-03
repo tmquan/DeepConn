@@ -49,11 +49,11 @@ class Model(ModelDesc):
 			losses.append(rand_ial)
 			add_moving_summary(rand_ial)
 
-		with tf.name_scope('reg_loss'):
-			reg_ial  = regDLF(toMaxLabels(pl,   factor=MAX_LABEL), toMaxLabels(pial, factor=MAX_LABEL), name='reg_ial')
+		# with tf.name_scope('reg_loss'):
+		# 	reg_ial  = regDLF(toMaxLabels(pl,   factor=MAX_LABEL), toMaxLabels(pial, factor=MAX_LABEL), name='reg_ial')
 	
-			losses.append(reg_ial)
-			add_moving_summary(reg_ial)
+		# 	losses.append(reg_ial)
+		# 	add_moving_summary(reg_ial)
 	
 
 		with tf.name_scope('aff_loss'):		
@@ -71,6 +71,14 @@ class Model(ModelDesc):
 			abs_ial = tf.reduce_mean(tf.abs(pl - pial), name='abs_ial')
 			losses.append(abs_ial)
 			add_moving_summary(abs_ial)	
+		
+		with tf.name_scope('discrim_loss'):
+			discrim_ial  = regDLF(toMaxLabels(pl,   factor=MAX_LABEL), pia , name='discrim_ial')
+			GAMMA = 1e1
+			losses.append(GAMMA*discrim_ial)
+			add_moving_summary(discrim_ial)
+		
+
 
 		self.cost = tf.reduce_sum(losses, name='self.cost')
 		add_moving_summary(self.cost)	
@@ -180,7 +188,8 @@ if __name__ == '__main__':
 				PeriodicTrigger(ModelSaver(), every_k_epochs=50),
 				PeriodicTrigger(VisualizeRunner(), every_k_epochs=5),
 				# PeriodicTrigger(InferenceRunner(ds_valid, [ScalarStats('loss_membr')]), every_k_epochs=5),
-				ScheduledHyperParamSetter('learning_rate', [(0, 2e-4), (100, 1e-4), (200, 1e-5), (300, 1e-6)], interp='linear')
+				# ScheduledHyperParamSetter('learning_rate', [(0, 2e-4), (100, 1e-4), (200, 1e-5), (300, 1e-6)], interp='linear')
+				ScheduledHyperParamSetter('learning_rate', [(0, 1e-6), (300, 1e-6)], interp='linear')
 				# ScheduledHyperParamSetter('learning_rate', [(30, 6e-6), (45, 1e-6), (60, 8e-7)]),
 				# HumanHyperParamSetter('learning_rate'),
 				],

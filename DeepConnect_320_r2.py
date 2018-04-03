@@ -74,17 +74,17 @@ class Model(ModelDesc):
 			add_moving_summary(rand_ial)
 			add_moving_summary(rand_il_)
 
-		with tf.name_scope('reg_loss'):
-			reg_il   = regDLF(toMaxLabels(pl,   factor=MAX_LABEL), toMaxLabels(pil , factor=MAX_LABEL), name='reg_il')
-			reg_ial  = regDLF(toMaxLabels(pl,   factor=MAX_LABEL), toMaxLabels(pial, factor=MAX_LABEL), name='reg_ial')
-			reg_il_  = regDLF(toMaxLabels(pl,   factor=MAX_LABEL), toMaxLabels(pil_, factor=MAX_LABEL), name='reg_il_')
+		# with tf.name_scope('reg_loss'):
+		# 	reg_il   = regDLF(toMaxLabels(pl,   factor=MAX_LABEL), toMaxLabels(pil , factor=MAX_LABEL), name='reg_il')
+		# 	reg_ial  = regDLF(toMaxLabels(pl,   factor=MAX_LABEL), toMaxLabels(pial, factor=MAX_LABEL), name='reg_ial')
+		# 	reg_il_  = regDLF(toMaxLabels(pl,   factor=MAX_LABEL), toMaxLabels(pil_, factor=MAX_LABEL), name='reg_il_')
 
-			losses.append(reg_il)
-			losses.append(reg_ial)
-			losses.append(reg_il_)
-			add_moving_summary(reg_il)
-			add_moving_summary(reg_ial)
-			add_moving_summary(reg_il_)
+		# 	losses.append(reg_il)
+		# 	losses.append(reg_ial)
+		# 	losses.append(reg_il_)
+		# 	add_moving_summary(reg_il)
+		# 	add_moving_summary(reg_ial)
+		# 	add_moving_summary(reg_il_)
 
 		with tf.name_scope('aff_loss'):		
 			aff_ia  = tf.identity(tf.subtract(binary_cross_entropy(tf_2imag(pa, maxVal=1.0), tf_2imag(pia, maxVal=1.0)), 
@@ -126,11 +126,25 @@ class Model(ModelDesc):
 		with tf.name_scope('res_loss'):		
 			res_ial = tf.reduce_mean(tf.abs(pil - pial), name='res_ial')
 			res_ila = tf.reduce_mean(tf.abs(pia - pila), name='res_ila')
-			ALPHA = 1e+1
+			ALPHA = 5e+0
 			losses.append(ALPHA*res_ial)
 			losses.append(ALPHA*res_ila)
 			add_moving_summary(res_ial)
 			add_moving_summary(res_ila)	
+		
+		with tf.name_scope('discrim_loss'):
+			discrim_ila  = regDLF(toMaxLabels(pl,   factor=MAX_LABEL), tf_2imag(pila, maxVal=1.0), name='discrim_il')
+			discrim_ial  = regDLF(toMaxLabels(pl,   factor=MAX_LABEL), tf_2imag(pia , maxVal=1.0), name='discrim_ial')
+			discrim_il_  = regDLF(toMaxLabels(pl,   factor=MAX_LABEL), tf_2imag(pia_, maxVal=1.0), name='discrim_il_')
+
+			GAMMA = 1e1
+			losses.append(GAMMA*discrim_ila)
+			losses.append(GAMMA*discrim_ial)
+			losses.append(GAMMA*discrim_il_)
+			add_moving_summary(discrim_ila)
+			add_moving_summary(discrim_ial)
+			add_moving_summary(discrim_il_)
+
 			
 
 		self.cost = tf.reduce_sum(losses, name='self.cost')
@@ -244,7 +258,8 @@ if __name__ == '__main__':
 				PeriodicTrigger(ModelSaver(), every_k_epochs=50),
 				PeriodicTrigger(VisualizeRunner(), every_k_epochs=5),
 				# PeriodicTrigger(InferenceRunner(ds_valid, [ScalarStats('loss_membr')]), every_k_epochs=5),
-				ScheduledHyperParamSetter('learning_rate', [(0, 2e-4), (100, 1e-4), (200, 1e-5), (300, 1e-6)], interp='linear')
+				ScheduledHyperParamSetter('learning_rate', [(0, 1e-6), (300, 1e-6)], interp='linear')
+				#ScheduledHyperParamSetter('learning_rate', [(0, 2e-4), (100, 1e-4), (200, 1e-5), (300, 1e-6)], interp='linear')
 				# ScheduledHyperParamSetter('learning_rate', [(30, 6e-6), (45, 1e-6), (60, 8e-7)]),
 				# HumanHyperParamSetter('learning_rate'),
 				],
@@ -254,8 +269,8 @@ if __name__ == '__main__':
 			)
 	
 		# Train the model
-		SyncMultiGPUTrainer(config).train()
+		# SyncMultiGPUTrainer(config).train()
 		# trainer = SyncMultiGPUTrainerReplicated(max(get_nr_gpu(), 1))
-		# launch_train_with_config(config, trainer)
+		launch_train_with_config(config, QueueInputTrainer())
 
 

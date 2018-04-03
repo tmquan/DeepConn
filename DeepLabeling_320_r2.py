@@ -49,11 +49,11 @@ class Model(ModelDesc):
 			losses.append(rand_il)
 			add_moving_summary(rand_il)
 
-		with tf.name_scope('reg_loss'):
-			reg_il   = regDLF(toMaxLabels(pl,   factor=MAX_LABEL), toMaxLabels(pil , factor=MAX_LABEL), name='reg_il')
+		# with tf.name_scope('reg_loss'):
+		# 	reg_il   = regDLF(toMaxLabels(pl,   factor=MAX_LABEL), toMaxLabels(pil , factor=MAX_LABEL), name='reg_il')
 			
-			losses.append(reg_il)
-			add_moving_summary(reg_il)
+		# 	losses.append(reg_il)
+		# 	add_moving_summary(reg_il)
 			
 		with tf.name_scope('aff_loss'):		
 			aff_ila  = tf.identity(tf.subtract(binary_cross_entropy(tf_2imag(pa, maxVal=1.0), tf_2imag(pila, maxVal=1.0)), 
@@ -70,6 +70,12 @@ class Model(ModelDesc):
 			abs_il = tf.reduce_mean(tf.abs(pl - pil), name='abs_il')
 			losses.append(abs_il)
 			add_moving_summary(abs_il)	
+
+		with tf.name_scope('discrim_loss'):
+			discrim_ila  = regDLF(toMaxLabels(pl,   factor=MAX_LABEL), pila, name='discrim_il')
+			GAMMA = 1e1
+			losses.append(GAMMA*discrim_ila)
+			add_moving_summary(discrim_ila)
 
 		self.cost = tf.reduce_sum(losses, name='self.cost')
 		add_moving_summary(self.cost)	
@@ -179,7 +185,8 @@ if __name__ == '__main__':
 				PeriodicTrigger(ModelSaver(), every_k_epochs=50),
 				PeriodicTrigger(VisualizeRunner(), every_k_epochs=5),
 				# PeriodicTrigger(InferenceRunner(ds_valid, [ScalarStats('loss_membr')]), every_k_epochs=5),
-				ScheduledHyperParamSetter('learning_rate', [(0, 2e-4), (100, 1e-4), (200, 1e-5), (300, 1e-6)], interp='linear')
+				# ScheduledHyperParamSetter('learning_rate', [(0, 2e-4), (100, 1e-4), (200, 1e-5), (300, 1e-6)], interp='linear')
+				ScheduledHyperParamSetter('learning_rate', [(0, 1e-6), (300, 1e-6)], interp='linear')
 				# ScheduledHyperParamSetter('learning_rate', [(30, 6e-6), (45, 1e-6), (60, 8e-7)]),
 				# HumanHyperParamSetter('learning_rate'),
 				],
